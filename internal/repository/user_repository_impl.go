@@ -4,6 +4,8 @@ import (
 	"event-management-backend/internal/config"
 	"event-management-backend/internal/domain/interfaces"
 	"event-management-backend/internal/domain/models"
+
+	"gorm.io/gorm"
 )
 
 type userRepository struct{}
@@ -37,7 +39,7 @@ func (r *userRepository) ListAll(role string, status string) ([]models.User, err
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
-	err := query.Find(&users).Error
+	err := query.Order("created_at ASC").Find(&users).Error
 	return users, err
 }
 
@@ -51,6 +53,14 @@ func (r *userRepository) Count() (int64, error) {
 	var count int64
 	err := config.DB.Model(&models.User{}).Count(&count).Error
 	return count, err
+}
+
+func (r *userRepository) UpdateFields(id uint,updates map[string]interface{},) error {
+	return config.DB.
+		Session(&gorm.Session{SkipHooks: true}).
+		Model(&models.User{}).
+		Where("id = ?", id).
+		Updates(updates).Error
 }
 
 func (r *userRepository) Update(user *models.User) error {

@@ -56,43 +56,84 @@ func (s *AdminUserService) ListUsers(role string, status string) ([]models.User,
 	return s.repo.ListAll(role, status)
 }
 
-func (s *AdminUserService) UpdateUser(user *models.User) error {
-	old, err := s.repo.FindByID(user.ID)
+func (s *AdminUserService) GetUser(id uint) (*models.User, error) {
+	return s.repo.FindByID(id)
+}
+
+func (s *AdminUserService) UpdateUser(input *models.User) error {
+	old, err := s.repo.FindByID(input.ID)
 	if err != nil {
 		return err
 	}
 
-	if old.Name == user.Name &&
-		old.Phone == user.Phone &&
-		old.Role == user.Role &&
-		old.Branch == user.Branch &&
-		old.StartingPoint == user.StartingPoint &&
-		old.BloodGroup == user.BloodGroup &&
-		old.Status == user.Status &&
-		(old.DOB == nil || user.DOB == nil || old.DOB.Equal(*user.DOB)) &&
-		user.Photo == "" {
+	changed := false
+
+	if input.Name != "" && input.Name != old.Name {
+		old.Name = input.Name
+		changed = true
+	}
+
+	if input.Phone != "" && input.Phone != old.Phone {
+		existing, err := s.repo.FindByPhone(input.Phone)
+		if err == nil && existing.ID != old.ID {
+			return errors.New("phone already exists")
+		}
+		old.Phone = input.Phone
+		changed = true
+	}
+
+	if input.Role != "" && input.Role != old.Role {
+		if !models.ValidateRole(input.Role) {
+			return errors.New("invalid role")
+		}
+		old.Role = input.Role
+		if wage, ok := s.roleWages[input.Role]; ok {
+			old.CurrentWage = wage
+		}
+		changed = true
+	}
+
+	if input.Branch != "" && input.Branch != old.Branch {
+		old.Branch = input.Branch
+		changed = true
+	}
+
+	if input.StartingPoint != "" && input.StartingPoint != old.StartingPoint {
+		old.StartingPoint = input.StartingPoint
+		changed = true
+	}
+
+	if input.BloodGroup != "" && input.BloodGroup != old.BloodGroup {
+		old.BloodGroup = input.BloodGroup
+		changed = true
+	}
+
+	if input.Status != "" && input.Status != old.Status {
+		if !models.ValidateStatus(input.Status) {
+			return errors.New("invalid status")
+		}
+		old.Status = input.Status
+		changed = true
+	}
+
+	if input.DOB != nil && (old.DOB == nil || !old.DOB.Equal(*input.DOB)) {
+		old.DOB = input.DOB
+		changed = true
+	}
+
+	if input.Photo != "" && input.Photo != old.Photo {
+		old.Photo = input.Photo
+		changed = true
+	}
+
+	// 🔥 THIS IS THE IMPORTANT PART
+	if !changed {
 		return errors.New("no changes detected")
 	}
 
-	if user.Phone != old.Phone {
-		existing, err := s.repo.FindByPhone(user.Phone)
-		if err == nil && existing.ID != 0 {
-			return errors.New("phone already exists")
-		}
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-	}
-
-	if user.Role != old.Role {
-		if wage, ok := s.roleWages[user.Role]; ok {
-			user.CurrentWage = wage
-		}
-	}
-
-	user.CreatedAt = old.CreatedAt
-	return s.repo.Update(user)
+	return s.repo.Update(old)
 }
+
 
 func (s *AdminUserService) BlockUser(id uint) error {
 	user, err := s.repo.FindByID(id)

@@ -98,6 +98,21 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 
 	c.JSON(http.StatusOK, users)
 }
+func (h *AdminUserHandler) GetUser(c *gin.Context) {
+	id := parseID(c.Param("id"))
+	if id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	user, err := h.service.GetUser(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
 
 func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
     id := parseID(c.Param("id"))
@@ -118,8 +133,6 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
         return
     }
 
-    // Remove ID validation from request object
-
     if err := req.Validate(); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
@@ -127,7 +140,7 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
 
     var photoName string
     file, err := c.FormFile("photo")
-    if err == nil {
+    if err == nil && file != nil && file.Filename != "" {
         ext := strings.ToLower(filepath.Ext(file.Filename))
         if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
             c.JSON(http.StatusBadRequest, gin.H{"error": "photo must be jpg/jpeg/png"})
@@ -135,10 +148,13 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
         }
 
         os.MkdirAll("uploads/users", os.ModePerm)
-
         photoName = fmt.Sprintf("user_%d%s", time.Now().UnixNano(), ext)
         savePath := filepath.Join("uploads/users", photoName)
-        c.SaveUploadedFile(file, savePath)
+
+        if err := c.SaveUploadedFile(file, savePath); err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save photo"})
+            return
+        }
     }
 
     user := &models.User{
@@ -162,13 +178,20 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
         user.Photo = photoName
     }
 
-    if err := h.service.UpdateUser(user); err != nil {
+    err = h.service.UpdateUser(user)
+    if err != nil {
+        if err.Error() == "no changes detected" {
+            c.JSON(http.StatusBadRequest, gin.H{"message": "no changes detected"})
+            return
+        }
+
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
     c.JSON(http.StatusOK, gin.H{"message": "user updated"})
 }
+
 
 func (h *AdminUserHandler) BlockUser(c *gin.Context) {
 	id := parseID(c.Param("id"))

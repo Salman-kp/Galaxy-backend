@@ -2,9 +2,14 @@ package utils
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
+
+func isProduction() bool {
+	return os.Getenv("APP_ENV") == "production"
+}
 
 func SetAccessToken(c *gin.Context, token string) {
 	maxAge := 60 * 60
@@ -15,6 +20,7 @@ func SetAccessToken(c *gin.Context, token string) {
 		MaxAge:   maxAge,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isProduction(),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -26,6 +32,7 @@ func ClearAccessToken(c *gin.Context) {
 		MaxAge:   -1,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isProduction(),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -39,6 +46,7 @@ func SetRefreshToken(c *gin.Context, token string) {
 		MaxAge:   maxAge,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isProduction(),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -50,6 +58,7 @@ func ClearRefreshToken(c *gin.Context) {
 		MaxAge:   -1,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isProduction(),
 		SameSite: http.SameSiteLaxMode,
 	})
 }

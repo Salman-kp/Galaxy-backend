@@ -50,10 +50,10 @@ type UpdateUserRequest struct {
 }
 
 func (r *UpdateUserRequest) Validate() error {
-	if !nameRegex.MatchString(r.Name) {
+	if r.Name != "" && !nameRegex.MatchString(r.Name) {
 		return errors.New("invalid name")
 	}
-	if !phoneRegex.MatchString(r.Phone) {
+	if r.Phone != "" && !phoneRegex.MatchString(r.Phone) {
 		return errors.New("invalid phone")
 	}
 	if r.Role == "" {

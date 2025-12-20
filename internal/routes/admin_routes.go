@@ -26,6 +26,7 @@ func AdminRoutes(r *gin.Engine) {
 
 	admin.POST("/users", userHandler.CreateUser)
 	admin.GET("/users", userHandler.ListUsers)
+	admin.GET("/users/:id", userHandler.GetUser)
 	admin.PUT("/users/:id", userHandler.UpdateUser)
 	admin.PUT("/users/block/:id", userHandler.BlockUser)
 	admin.PUT("/users/unblock/:id", userHandler.UnblockUser)
