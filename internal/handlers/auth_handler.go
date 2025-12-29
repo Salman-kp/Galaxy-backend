@@ -1,13 +1,12 @@
 package handlers
 
 import (
-	"net/http"
-
 	"event-management-backend/internal/domain/interfaces"
 	"event-management-backend/internal/domain/models"
-	"event-management-backend/internal/services"
+	"event-management-backend/internal/services/auth"
 	"event-management-backend/internal/utils"
 	"event-management-backend/internal/validations"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,10 +14,10 @@ import (
 type AuthHandler struct {
 	UserRepo    interfaces.UserRepository
 	RefreshRepo interfaces.RefreshTokenRepository
-	JWTService  *services.JWTService
+	JWTService  *auth.JWTService
 }
 
-func NewAuthHandler(u interfaces.UserRepository, r interfaces.RefreshTokenRepository, j *services.JWTService) *AuthHandler {
+func NewAuthHandler(u interfaces.UserRepository, r interfaces.RefreshTokenRepository, j *auth.JWTService) *AuthHandler {
 	return &AuthHandler{UserRepo: u, RefreshRepo: r, JWTService: j}
 }
 
@@ -35,6 +34,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	user, err := h.UserRepo.FindByPhone(req.Phone)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	if user.Status == models.StatusBlocked || user.Status == models.StatusDeleted {
+		c.JSON(http.StatusForbidden, gin.H{"error": "user is not allowed to login"})
 		return
 	}
 	if !utils.CheckPasswordHash(req.Password, user.Password) {
@@ -86,4 +89,34 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	utils.ClearAccessToken(c)
 	utils.ClearRefreshToken(c)
 	c.JSON(http.StatusOK, gin.H{"message": "logout successful"})
+}
+
+func (h *AuthHandler) Profile(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	user, err := h.UserRepo.FindByID(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":              user.ID,
+		"name":            user.Name,
+		"phone":           user.Phone,
+		"role":            user.Role,
+		"branch":          user.Branch,
+		"starting_point":  user.StartingPoint,
+		"blood_group":     user.BloodGroup,
+		"dob":             user.DOB,
+		"photo":           user.Photo,
+		"joined_at":       user.JoinedAt,
+		"completed_work":  user.CompletedWork,
+		"current_wage":    user.CurrentWage,
+		"status":          user.Status,
+	})
 }

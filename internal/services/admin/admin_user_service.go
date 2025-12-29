@@ -1,4 +1,4 @@
-package services
+package admin
 
 import (
 	"errors"
@@ -126,7 +126,6 @@ func (s *AdminUserService) UpdateUser(input *models.User) error {
 		changed = true
 	}
 
-	// 🔥 THIS IS THE IMPORTANT PART
 	if !changed {
 		return errors.New("no changes detected")
 	}

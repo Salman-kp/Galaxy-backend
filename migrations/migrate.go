@@ -10,5 +10,7 @@ func Migrate() error {
 		&models.User{},
 		&models.RoleWage{},
 		&models.RefreshToken{},
+		&models.Event{},
+		&models.Booking{},
 	)
 }

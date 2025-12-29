@@ -64,3 +64,22 @@ func (r *UpdateUserRequest) Validate() error {
 	}
 	return nil
 }
+
+type UpdateAdminSelfProfileRequest struct {
+	Name          string `json:"name"`
+	Phone         string `json:"phone"`
+	Branch        string `json:"branch"`
+	StartingPoint string `json:"starting_point"`
+	BloodGroup    string `json:"blood_group"`
+	DOB           string `json:"dob"`
+}
+
+func (r *UpdateAdminSelfProfileRequest) Validate() error {
+	if r.Name != "" && !nameRegex.MatchString(r.Name) {
+		return errors.New("invalid name")
+	}
+	if r.Phone != "" && !phoneRegex.MatchString(r.Phone) {
+		return errors.New("invalid phone")
+	}
+	return nil
+}

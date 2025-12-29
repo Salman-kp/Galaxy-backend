@@ -1,18 +1,18 @@
 package middleware
 
 import (
-    "net/http"
-    "strings"
-    "time"
+	"net/http"
+	"strings"
+	"time"
 
-    "event-management-backend/internal/domain/interfaces"
-    "event-management-backend/internal/services"
-    "event-management-backend/internal/utils"
+	"event-management-backend/internal/domain/interfaces"
+	"event-management-backend/internal/services/auth"
+	"event-management-backend/internal/utils"
 
-    "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
-func JWTAuthMiddleware(jwtService *services.JWTService, refreshRepo interfaces.RefreshTokenRepository) gin.HandlerFunc {
+func JWTAuthMiddleware(jwtService *auth.JWTService, refreshRepo interfaces.RefreshTokenRepository) gin.HandlerFunc {
     return func(c *gin.Context) {
         var accessToken string
         header := c.GetHeader("Authorization")

@@ -14,15 +14,19 @@ import (
 )
 
 func main() {
-	// Connect to DB
+	// Connect DB
 	config.ConnectDatabase()
-	//migrate db
+
+	// Migrate DB
 	if err := migrations.Migrate(); err != nil {
 		log.Fatal("Migration failed:", err)
 	}
-    seeders.SeedAdmin(config.DB)
-	
-	// Create router
+
+	// Seeders
+	seeders.SeedAdmin(config.DB)
+	seeders.SeedRoleWages(config.DB)
+
+	// Router
 	router := gin.Default()
 
 	routes.AuthRoutes(
@@ -30,10 +34,11 @@ func main() {
 		repository.NewUserRepository(),
 		repository.NewRefreshTokenRepository(),
 	)
-
 	routes.AdminRoutes(router)
+	routes.CaptainRoutes(router)
+	routes.WorkerRoutes(router)
 
-	// Server port from .env
+	// Server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

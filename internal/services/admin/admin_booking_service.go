@@ -1,0 +1,162 @@
+package admin
+
+import (
+	"errors"
+
+	"event-management-backend/internal/config"
+	"event-management-backend/internal/domain/interfaces"
+	"event-management-backend/internal/domain/models"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+type AdminBookingService struct {
+	bookingRepo interfaces.BookingRepository
+	eventRepo   interfaces.EventRepository
+}
+
+func NewAdminBookingService(
+	bookingRepo interfaces.BookingRepository,
+	eventRepo interfaces.EventRepository,
+) *AdminBookingService {
+	return &AdminBookingService{
+		bookingRepo: bookingRepo,
+		eventRepo:   eventRepo,
+	}
+}
+
+//
+// ---------------- REMOVE USER FROM EVENT (ADMIN) ----------------
+//
+func (s *AdminBookingService) RemoveUserFromEvent(eventID, bookingID uint) error {
+	return config.DB.Transaction(func(tx *gorm.DB) error {
+
+		booking, err := s.bookingRepo.FindByIDForUpdate(tx, bookingID)
+		if err != nil {
+			return errors.New("booking not found")
+		}
+
+		if booking.EventID != eventID {
+			return errors.New("booking does not belong to this event")
+		}
+
+		event, err := s.eventRepo.FindByIDForUpdate(tx, eventID)
+		if err != nil {
+			return err
+		}
+
+		// Restore remaining slots
+		switch booking.Role {
+		case models.RoleCaptain:
+			event.RemainingCaptains++
+		case models.RoleSubCaptain:
+			event.RemainingSubCaptains++
+		case models.RoleMainBoy:
+			event.RemainingMainBoys++
+		case models.RoleJuniorBoy:
+			event.RemainingJuniors++
+		}
+
+		if err := tx.Save(event).Error; err != nil {
+			return err
+		}
+
+		return s.bookingRepo.Delete(booking.ID)
+	})
+}
+
+//
+// ---------------- LIST EVENT BOOKINGS ----------------
+//
+func (s *AdminBookingService) ListEventBookings(eventID uint) ([]models.Booking, error) {
+	return s.bookingRepo.ListByEvent(eventID)
+}
+
+//
+// ---------------- UPDATE ATTENDANCE (ADMIN) ----------------
+// Admin can:
+// - mark attendance
+// - change booking status
+// - update TA / Bonus / Fine
+//
+func (s *AdminBookingService) UpdateAttendance(
+	bookingID uint,
+	status string,
+	taAmount int64,
+	bonusAmount int64,
+	fineAmount int64,
+) error {
+
+	return config.DB.Transaction(func(tx *gorm.DB) error {
+
+		// Lock booking row
+		var booking models.Booking
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND deleted_at IS NULL", bookingID).
+			First(&booking).Error; err != nil {
+			return errors.New("booking not found")
+		}
+
+		// Validate status (CORRECT CONSTANTS)
+		switch status {
+		case models.BookingStatusBooked,
+			models.BookingStatusPresent,
+			models.BookingStatusCompleted,
+			models.BookingStatusAbsent:
+		default:
+			return errors.New("invalid booking status")
+		}
+
+		// Lock event row
+		event, err := s.eventRepo.FindByIDForUpdate(tx, booking.EventID)
+		if err != nil {
+			return err
+		}
+
+		booking.Status = status
+
+		// ABSENT → wipe everything
+		if status == models.BookingStatusAbsent {
+			booking.BaseAmount = 0
+			booking.ExtraAmount = 0
+			booking.TAAmount = 0
+			booking.BonusAmount = 0
+			booking.FineAmount = 0
+			booking.TotalAmount = 0
+
+			return tx.Save(&booking).Error
+		}
+
+		// Validate amounts
+		if taAmount < 0 || bonusAmount < 0 || fineAmount < 0 {
+			return errors.New("amounts cannot be negative")
+		}
+
+		booking.TAAmount = taAmount
+		booking.BonusAmount = bonusAmount
+		booking.FineAmount = fineAmount
+
+		// Extra wage (long work)
+		if event.LongWork {
+			booking.ExtraAmount = event.ExtraWageAmount
+		} else {
+			booking.ExtraAmount = 0
+		}
+
+		// BaseAmount remains unchanged (set during booking/start)
+		booking.TotalAmount =
+			booking.BaseAmount +
+				booking.ExtraAmount +
+				booking.TAAmount +
+				booking.BonusAmount -
+				booking.FineAmount
+
+		if booking.TotalAmount < 0 {
+			booking.TotalAmount = 0
+		}
+
+		return tx.Save(&booking).Error
+	})
+}
