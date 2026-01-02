@@ -7,8 +7,6 @@ import (
 	"event-management-backend/internal/domain/models"
 )
 
-// DASHBOARD RESPONSE STRUCTS
-
 type DashboardSummary struct {
 	TotalEvents     int64 `json:"total_events"`
 	CompletedEvents int64 `json:"completed_events"`
@@ -27,62 +25,69 @@ type DailyEventCount struct {
 	Count int64  `json:"count"`
 }
 
-type TodayEvent struct {
-	ID            uint   `json:"id"`
-	EventName     string `json:"event_name"`
-	Date          string `json:"date"`
-	TimeSlot      string `json:"time_slot"`
-	ReportingTime string `json:"reporting_time"`
-	Status        string `json:"status"`
-}
-
-
 type DashboardService struct{}
 
 func NewDashboardService() *DashboardService {
 	return &DashboardService{}
 }
 
-
-// 3.1 TOP 5 BOXES
-
+//
+// ---------------- SUMMARY ----------------
+//
 func (s *DashboardService) GetSummary() (*DashboardSummary, error) {
 	var summary DashboardSummary
-
 	db := config.DB
 
-	db.Model(&models.Event{}).Count(&summary.TotalEvents)
+	if err := db.Model(&models.Event{}).
+		Where("deleted_at IS NULL").
+		Count(&summary.TotalEvents).Error; err != nil {
+		return nil, err
+	}
 
-	db.Model(&models.Event{}).
-		Where("status = ?", models.EventStatusCompleted).
-		Count(&summary.CompletedEvents)
+	if err := db.Model(&models.Event{}).
+		Where("status = ? AND deleted_at IS NULL", models.EventStatusCompleted).
+		Count(&summary.CompletedEvents).Error; err != nil {
+		return nil, err
+	}
 
-	db.Model(&models.Event{}).
-		Where("status = ?", models.EventStatusOngoing).
-		Count(&summary.OngoingEvents)
+	if err := db.Model(&models.Event{}).
+		Where("status = ? AND deleted_at IS NULL", models.EventStatusOngoing).
+		Count(&summary.OngoingEvents).Error; err != nil {
+		return nil, err
+	}
 
-	db.Model(&models.Event{}).
-		Where("status = ?", models.EventStatusUpcoming).
-		Count(&summary.UpcomingEvents)
+	if err := db.Model(&models.Event{}).
+		Where("status = ? AND deleted_at IS NULL", models.EventStatusUpcoming).
+		Count(&summary.UpcomingEvents).Error; err != nil {
+		return nil, err
+	}
 
-	db.Model(&models.User{}).Count(&summary.TotalUsers)
+	if err := db.Model(&models.User{}).
+		Where("deleted_at IS NULL").
+		Count(&summary.TotalUsers).Error; err != nil {
+		return nil, err
+	}
 
 	return &summary, nil
 }
 
-
-// 3.2 MONTH-BASED CHART
-
+//
+// ---------------- MONTHLY CHART ----------------
+//
 func (s *DashboardService) GetMonthlyEventChart(year int) ([]MonthlyEventCount, error) {
 	var result []MonthlyEventCount
 
 	err := config.DB.
 		Table("events").
 		Select(`
-			TO_CHAR(date, 'YYYY-MM') as month,
-			COUNT(*) as count
+			TO_CHAR(date, 'YYYY-MM') AS month,
+			COUNT(*) AS count
 		`).
-		Where("EXTRACT(YEAR FROM date) = ?", year).
+		Where(`
+			EXTRACT(YEAR FROM date) = ?
+			AND status != ?
+			AND deleted_at IS NULL
+		`, year, models.EventStatusCancelled).
 		Group("month").
 		Order("month ASC").
 		Scan(&result).Error
@@ -90,22 +95,24 @@ func (s *DashboardService) GetMonthlyEventChart(year int) ([]MonthlyEventCount, 
 	return result, err
 }
 
-
-// (Admin clicks month → dates update)
-
+//
+// ---------------- DAILY CHART ----------------
+//
 func (s *DashboardService) GetDailyEventChart(year int, month int) ([]DailyEventCount, error) {
 	var result []DailyEventCount
 
 	err := config.DB.
 		Table("events").
 		Select(`
-			TO_CHAR(date, 'YYYY-MM-DD') as date,
-			COUNT(*) as count
+			TO_CHAR(date, 'YYYY-MM-DD') AS date,
+			COUNT(*) AS count
 		`).
 		Where(`
 			EXTRACT(YEAR FROM date) = ?
 			AND EXTRACT(MONTH FROM date) = ?
-		`, year, month).
+			AND status != ?
+			AND deleted_at IS NULL
+		`, year, month, models.EventStatusCancelled).
 		Group("date").
 		Order("date ASC").
 		Scan(&result).Error
@@ -113,18 +120,23 @@ func (s *DashboardService) GetDailyEventChart(year int, month int) ([]DailyEvent
 	return result, err
 }
 
-
-// 3.3 TODAY'S WORK LIST
-
+//
+// ---------------- TODAY EVENTS ----------------
+//
 func (s *DashboardService) GetTodayEvents() ([]models.Event, error) {
 	var events []models.Event
 
-	today := time.Now().Truncate(24 * time.Hour)
+	start := time.Now().Truncate(24 * time.Hour)
+	end := start.Add(24 * time.Hour)
 
 	err := config.DB.
 		Model(&models.Event{}).
-		Where("date = ?", today).
-		Order("date ASC, reporting_time ASC").
+		Where(`
+			date >= ? AND date < ?
+			AND status != ?
+			AND deleted_at IS NULL
+		`, start, end, models.EventStatusCancelled).
+		Order("reporting_time ASC").
 		Find(&events).Error
 
 	return events, err

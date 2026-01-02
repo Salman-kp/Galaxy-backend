@@ -27,7 +27,15 @@ func NewAdminBookingService(
 }
 
 //
-// ---------------- REMOVE USER FROM EVENT (ADMIN) ----------------
+// ---------------- LIST EVENT BOOKINGS ----------------
+//
+func (s *AdminBookingService) ListEventBookings(eventID uint) ([]models.Booking, error) {
+	return s.bookingRepo.ListByEvent(eventID)
+}
+
+//
+// ---------------- REMOVE USER FROM EVENT ----------------
+// RULE: ONLY UPCOMING EVENTS
 //
 func (s *AdminBookingService) RemoveUserFromEvent(eventID, bookingID uint) error {
 	return config.DB.Transaction(func(tx *gorm.DB) error {
@@ -46,7 +54,11 @@ func (s *AdminBookingService) RemoveUserFromEvent(eventID, bookingID uint) error
 			return err
 		}
 
-		// Restore remaining slots
+		if event.Status != models.EventStatusUpcoming {
+			return errors.New("booking removal allowed only for upcoming events")
+		}
+
+		// restore slot
 		switch booking.Role {
 		case models.RoleCaptain:
 			event.RemainingCaptains++
@@ -62,23 +74,14 @@ func (s *AdminBookingService) RemoveUserFromEvent(eventID, bookingID uint) error
 			return err
 		}
 
-		return s.bookingRepo.Delete(booking.ID)
+		return s.bookingRepo.DeleteTx(tx, booking.ID)
 	})
 }
 
 //
-// ---------------- LIST EVENT BOOKINGS ----------------
-//
-func (s *AdminBookingService) ListEventBookings(eventID uint) ([]models.Booking, error) {
-	return s.bookingRepo.ListByEvent(eventID)
-}
-
-//
-// ---------------- UPDATE ATTENDANCE (ADMIN) ----------------
-// Admin can:
-// - mark attendance
-// - change booking status
-// - update TA / Bonus / Fine
+// ---------------- UPDATE ATTENDANCE ----------------
+// RULE: ONLY ONGOING EVENTS
+// RETURNS: UPDATED BOOKING (WITH TOTAL AMOUNT)
 //
 func (s *AdminBookingService) UpdateAttendance(
 	bookingID uint,
@@ -86,11 +89,12 @@ func (s *AdminBookingService) UpdateAttendance(
 	taAmount int64,
 	bonusAmount int64,
 	fineAmount int64,
-) error {
+) (*models.Booking, error) {
 
-	return config.DB.Transaction(func(tx *gorm.DB) error {
+	var updatedBooking *models.Booking
 
-		// Lock booking row
+	err := config.DB.Transaction(func(tx *gorm.DB) error {
+
 		var booking models.Booking
 		if err := tx.
 			Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -99,7 +103,15 @@ func (s *AdminBookingService) UpdateAttendance(
 			return errors.New("booking not found")
 		}
 
-		// Validate status (CORRECT CONSTANTS)
+		event, err := s.eventRepo.FindByIDForUpdate(tx, booking.EventID)
+		if err != nil {
+			return err
+		}
+
+		if event.Status != models.EventStatusOngoing {
+			return errors.New("attendance can be updated only during ongoing events")
+		}
+
 		switch status {
 		case models.BookingStatusBooked,
 			models.BookingStatusPresent,
@@ -109,15 +121,9 @@ func (s *AdminBookingService) UpdateAttendance(
 			return errors.New("invalid booking status")
 		}
 
-		// Lock event row
-		event, err := s.eventRepo.FindByIDForUpdate(tx, booking.EventID)
-		if err != nil {
-			return err
-		}
-
 		booking.Status = status
 
-		// ABSENT → wipe everything
+		// ---------------- ABSENT ----------------
 		if status == models.BookingStatusAbsent {
 			booking.BaseAmount = 0
 			booking.ExtraAmount = 0
@@ -126,10 +132,15 @@ func (s *AdminBookingService) UpdateAttendance(
 			booking.FineAmount = 0
 			booking.TotalAmount = 0
 
-			return tx.Save(&booking).Error
+			if err := tx.Save(&booking).Error; err != nil {
+				return err
+			}
+
+			updatedBooking = &booking
+			return nil
 		}
 
-		// Validate amounts
+		// ---------------- VALIDATE AMOUNTS ----------------
 		if taAmount < 0 || bonusAmount < 0 || fineAmount < 0 {
 			return errors.New("amounts cannot be negative")
 		}
@@ -138,14 +149,14 @@ func (s *AdminBookingService) UpdateAttendance(
 		booking.BonusAmount = bonusAmount
 		booking.FineAmount = fineAmount
 
-		// Extra wage (long work)
+		// ---------------- EXTRA WAGE ----------------
 		if event.LongWork {
 			booking.ExtraAmount = event.ExtraWageAmount
 		} else {
 			booking.ExtraAmount = 0
 		}
 
-		// BaseAmount remains unchanged (set during booking/start)
+		// ---------------- TOTAL CALCULATION ----------------
 		booking.TotalAmount =
 			booking.BaseAmount +
 				booking.ExtraAmount +
@@ -157,6 +168,13 @@ func (s *AdminBookingService) UpdateAttendance(
 			booking.TotalAmount = 0
 		}
 
-		return tx.Save(&booking).Error
+		if err := tx.Save(&booking).Error; err != nil {
+			return err
+		}
+
+		updatedBooking = &booking
+		return nil
 	})
+
+	return updatedBooking, err
 }

@@ -36,8 +36,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
-	if user.Status == models.StatusBlocked || user.Status == models.StatusDeleted {
-		c.JSON(http.StatusForbidden, gin.H{"error": "user is not allowed to login"})
+	if user.Status == models.StatusBlocked {
+		c.JSON(http.StatusForbidden, gin.H{"error": "user is blocked"})
 		return
 	}
 	if !utils.CheckPasswordHash(req.Password, user.Password) {

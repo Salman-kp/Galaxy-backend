@@ -49,12 +49,3 @@ type Event struct {
 	UpdatedAt            time.Time      `json:"updated_at"`
 	DeletedAt            gorm.DeletedAt `gorm:"index" json:"-"`
 }
-
-
-// func (e *Event) IsEditable() bool {
-// 	return e.Status == EventStatusUpcoming || e.Status == EventStatusOngoing
-// }
-
-// func (e *Event) IsBookable() bool {
-// 	return e.Status == EventStatusUpcoming || e.Status == EventStatusOngoing
-// }

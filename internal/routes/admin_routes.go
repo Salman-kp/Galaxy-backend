@@ -24,9 +24,9 @@ func AdminRoutes(r *gin.Engine) {
 	userService := admin.NewAdminUserService(userRepo, wageRepo)
 	eventService := admin.NewAdminEventService(eventRepo)
 	bookingService := admin.NewAdminBookingService(bookingRepo, eventRepo)
-	wageService := admin.NewWageService(bookingRepo)
+	wageService := admin.NewWageService(bookingRepo,eventRepo)
 	dashboardService := admin.NewDashboardService()
-	roleWageService := admin.NewRoleWageService(wageRepo)
+	roleWageService := admin.NewRoleWageService(wageRepo,userRepo)
 
 	// ---------------- Handlers ----------------
 	userHandler := adminHandlers.NewAdminUserHandler(userService)

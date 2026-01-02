@@ -14,5 +14,5 @@ type BookingRepository interface {
 	ListByEvent(eventID uint) ([]models.Booking, error)
 	FindByIDForUpdate(tx *gorm.DB, id uint) (*models.Booking, error)
 	Update(booking *models.Booking) error
-	Delete(id uint) error
+	DeleteTx(tx *gorm.DB, id uint) error
 }

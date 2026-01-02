@@ -17,7 +17,6 @@ const (
 	
 	StatusActive   = "active"
 	StatusBlocked  = "blocked"
-	StatusDeleted  = "deleted"
 )
 
 type User struct {
@@ -55,7 +54,7 @@ func ValidateRole(r string) bool {
 
 func ValidateStatus(s string) bool {
 	switch s {
-	case StatusActive, StatusBlocked, StatusDeleted:
+	case StatusActive, StatusBlocked:
 		return true
 	}
 	return false
@@ -65,8 +64,21 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 }
 
 func (u *User) BeforeUpdate(tx *gorm.DB) error {
-	return u.validateFields()
+	if u.Name != "" && !nameRegex.MatchString(u.Name) {
+		return errors.New("invalid name")
+	}
+	if u.Phone != "" && !phoneRegex.MatchString(u.Phone) {
+		return errors.New("invalid phone number")
+	}
+	if u.Role != "" && !ValidateRole(u.Role) {
+		return errors.New("invalid role")
+	}
+	if u.Status != "" && !ValidateStatus(u.Status) {
+		return errors.New("invalid status")
+	}
+	return nil
 }
+
 
 func (u *User) validateFields() error {
 	if !nameRegex.MatchString(u.Name) {

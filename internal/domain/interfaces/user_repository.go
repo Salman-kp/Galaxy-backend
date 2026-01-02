@@ -9,7 +9,10 @@ type UserRepository interface {
 	ListAll(role string, status string) ([]models.User, error)
 	FindAll() ([]models.User, error)
 	Count() (int64, error)
-	UpdateFields(id uint, updates map[string]interface{}) error
+
 	Update(user *models.User) error
+	UpdateFields(id uint, updates map[string]interface{}) error
+	UpdateWageByRole(role string, wage int64) error
+
 	SoftDelete(id uint) error
 }

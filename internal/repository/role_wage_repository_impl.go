@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"event-management-backend/internal/config"
 	"event-management-backend/internal/domain/interfaces"
 	"event-management-backend/internal/domain/models"
@@ -17,7 +18,11 @@ func (r *roleWageRepository) Create(wage *models.RoleWage) error {
 }
 
 func (r *roleWageRepository) Update(wage *models.RoleWage) error {
-	return config.DB.Save(wage).Error
+	res := config.DB.Save(wage)
+	if res.RowsAffected == 0 {
+		return errors.New("no rows updated")
+	}
+	return res.Error
 }
 
 func (r *roleWageRepository) Delete(role string) error {

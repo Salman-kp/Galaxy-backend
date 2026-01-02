@@ -98,9 +98,13 @@ func (r *bookingRepository) Update(booking *models.Booking) error {
 
 //---------------- HARD DELETE (ADMIN ONLY) ----------------
 
-func (r *bookingRepository) Delete(id uint) error {
-	return config.DB.
+func (r *bookingRepository) DeleteTx(tx *gorm.DB, id uint) error {
+	res := tx.
 		Unscoped().
-		Delete(&models.Booking{}, id).
-		Error
+		Delete(&models.Booking{}, id)
+
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return res.Error
 }

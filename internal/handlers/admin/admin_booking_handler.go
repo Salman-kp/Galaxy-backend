@@ -18,7 +18,6 @@ func NewAdminBookingHandler(service *admin.AdminBookingService) *AdminBookingHan
 	return &AdminBookingHandler{service: service}
 }
 
-
 // ---------------- LIST EVENT BOOKINGS ----------------
 
 func (h *AdminBookingHandler) ListEventBookings(c *gin.Context) {
@@ -37,9 +36,8 @@ func (h *AdminBookingHandler) ListEventBookings(c *gin.Context) {
 	c.JSON(http.StatusOK, bookings)
 }
 
-
 // ---------------- REMOVE USER FROM EVENT ----------------
-//
+
 func (h *AdminBookingHandler) RemoveUserFromEvent(c *gin.Context) {
 	eventID := utils.ParseUintParam(c.Param("event_id"))
 	if eventID == 0 {
@@ -61,12 +59,8 @@ func (h *AdminBookingHandler) RemoveUserFromEvent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "user removed from event"})
 }
 
-//
 // ---------------- UPDATE ATTENDANCE (ADMIN) ----------------
-// Admin can:
-// - mark attendance
-// - change booking status
-// - update TA / Bonus / Fine during live event
+// RETURNS UPDATED BOOKING WITH TOTAL AMOUNT
 //
 func (h *AdminBookingHandler) UpdateAttendance(c *gin.Context) {
 	bookingID := utils.ParseUintParam(c.Param("booking_id"))
@@ -81,16 +75,26 @@ func (h *AdminBookingHandler) UpdateAttendance(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateAttendance(
+	booking, err := h.service.UpdateAttendance(
 		bookingID,
 		req.Status,
 		req.TAAmount,
 		req.BonusAmount,
 		req.FineAmount,
-	); err != nil {
+	)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "attendance updated successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"booking_id":   booking.ID,
+		"status":       booking.Status,
+		"base_amount":  booking.BaseAmount,
+		"extra_amount": booking.ExtraAmount,
+		"ta_amount":    booking.TAAmount,
+		"bonus_amount": booking.BonusAmount,
+		"fine_amount":  booking.FineAmount,
+		"total_amount": booking.TotalAmount,
+	})
 }

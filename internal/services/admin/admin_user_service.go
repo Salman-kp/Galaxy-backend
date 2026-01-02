@@ -12,33 +12,32 @@ import (
 )
 
 type AdminUserService struct {
-	repo      interfaces.UserRepository
-	roleWages map[string]int64
+	repo         interfaces.UserRepository
+	roleWageRepo interfaces.RoleWageRepository
 }
 
-func NewAdminUserService(repo interfaces.UserRepository, wagesRepo interfaces.RoleWageRepository) *AdminUserService {
-	wages := make(map[string]int64)
-	allWages, err := wagesRepo.GetAll()
-	if err != nil {
-		allWages = []models.RoleWage{}
+func NewAdminUserService(
+	repo interfaces.UserRepository,
+	wagesRepo interfaces.RoleWageRepository,
+) *AdminUserService {
+	return &AdminUserService{
+		repo:         repo,
+		roleWageRepo: wagesRepo,
 	}
-	for _, w := range allWages {
-		wages[w.Role] = w.Wage
-	}
-	return &AdminUserService{repo: repo, roleWages: wages}
 }
 
+// ---------------- CREATE USER ----------------
 func (s *AdminUserService) CreateUser(input *models.User) error {
 	existing, err := s.repo.FindByPhone(input.Phone)
-	if err == nil && existing.ID != 0 {
+	if err == nil && existing.ID != 0 && !existing.DeletedAt.Valid {
 		return errors.New("phone already exists")
 	}
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 
-	if wage, ok := s.roleWages[input.Role]; ok {
-		input.CurrentWage = wage
+	if rw, err := s.roleWageRepo.FindByRole(input.Role); err == nil {
+		input.CurrentWage = rw.Wage
 	}
 
 	hashed, err := utils.HashPassword(input.Password)
@@ -52,14 +51,17 @@ func (s *AdminUserService) CreateUser(input *models.User) error {
 	return s.repo.Create(input)
 }
 
+// ---------------- LIST USERS ----------------
 func (s *AdminUserService) ListUsers(role string, status string) ([]models.User, error) {
 	return s.repo.ListAll(role, status)
 }
 
+// ---------------- GET USER ----------------
 func (s *AdminUserService) GetUser(id uint) (*models.User, error) {
 	return s.repo.FindByID(id)
 }
 
+// ---------------- UPDATE USER ----------------
 func (s *AdminUserService) UpdateUser(input *models.User) error {
 	old, err := s.repo.FindByID(input.ID)
 	if err != nil {
@@ -75,7 +77,7 @@ func (s *AdminUserService) UpdateUser(input *models.User) error {
 
 	if input.Phone != "" && input.Phone != old.Phone {
 		existing, err := s.repo.FindByPhone(input.Phone)
-		if err == nil && existing.ID != old.ID {
+		if err == nil && existing.ID != old.ID && !existing.DeletedAt.Valid {
 			return errors.New("phone already exists")
 		}
 		old.Phone = input.Phone
@@ -87,9 +89,12 @@ func (s *AdminUserService) UpdateUser(input *models.User) error {
 			return errors.New("invalid role")
 		}
 		old.Role = input.Role
-		if wage, ok := s.roleWages[input.Role]; ok {
-			old.CurrentWage = wage
+
+		// 🔧 UPDATED: fetch latest wage on role change
+		if rw, err := s.roleWageRepo.FindByRole(input.Role); err == nil {
+			old.CurrentWage = rw.Wage
 		}
+
 		changed = true
 	}
 
@@ -133,7 +138,7 @@ func (s *AdminUserService) UpdateUser(input *models.User) error {
 	return s.repo.Update(old)
 }
 
-
+// ---------------- BLOCK USER ----------------
 func (s *AdminUserService) BlockUser(id uint) error {
 	user, err := s.repo.FindByID(id)
 	if err != nil {
@@ -148,6 +153,7 @@ func (s *AdminUserService) BlockUser(id uint) error {
 	return s.repo.Update(user)
 }
 
+// ---------------- UNBLOCK USER ----------------
 func (s *AdminUserService) UnblockUser(id uint) error {
 	user, err := s.repo.FindByID(id)
 	if err != nil {
@@ -162,6 +168,7 @@ func (s *AdminUserService) UnblockUser(id uint) error {
 	return s.repo.Update(user)
 }
 
+// ---------------- SOFT DELETE USER ----------------
 func (s *AdminUserService) SoftDeleteUser(id uint) error {
 	user, err := s.repo.FindByID(id)
 	if err != nil {
@@ -173,6 +180,7 @@ func (s *AdminUserService) SoftDeleteUser(id uint) error {
 	return s.repo.SoftDelete(id)
 }
 
+// ---------------- RESET PASSWORD ----------------
 func (s *AdminUserService) ResetPassword(id uint, newPassword string) error {
 	user, err := s.repo.FindByID(id)
 	if err != nil {

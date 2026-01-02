@@ -20,51 +20,71 @@ func (r *userRepository) Create(user *models.User) error {
 
 func (r *userRepository) FindByID(id uint) (*models.User, error) {
 	var user models.User
-	err := config.DB.First(&user, id).Error
+	err := config.DB.
+		Where("id = ? AND deleted_at IS NULL", id).
+		First(&user).Error
 	return &user, err
 }
 
 func (r *userRepository) FindByPhone(phone string) (*models.User, error) {
 	var user models.User
-	err := config.DB.Where("phone = ?", phone).First(&user).Error
+	err := config.DB.
+		Where("phone = ? AND deleted_at IS NULL", phone).
+		First(&user).Error
 	return &user, err
 }
 
 func (r *userRepository) ListAll(role string, status string) ([]models.User, error) {
 	var users []models.User
-	query := config.DB.Model(&models.User{})
+	query := config.DB.
+		Model(&models.User{}).
+		Where("deleted_at IS NULL")
+
 	if role != "" {
 		query = query.Where("role = ?", role)
 	}
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
+
 	err := query.Order("created_at ASC").Find(&users).Error
 	return users, err
 }
 
 func (r *userRepository) FindAll() ([]models.User, error) {
 	var users []models.User
-	err := config.DB.Find(&users).Error
+	err := config.DB.
+		Where("deleted_at IS NULL").
+		Find(&users).Error
 	return users, err
 }
 
 func (r *userRepository) Count() (int64, error) {
 	var count int64
-	err := config.DB.Model(&models.User{}).Count(&count).Error
-	return count, err
-}
-
-func (r *userRepository) UpdateFields(id uint,updates map[string]interface{},) error {
-	return config.DB.
-		Session(&gorm.Session{SkipHooks: true}).
+	err := config.DB.
 		Model(&models.User{}).
-		Where("id = ?", id).
-		Updates(updates).Error
+		Where("deleted_at IS NULL").
+		Count(&count).Error
+	return count, err
 }
 
 func (r *userRepository) Update(user *models.User) error {
 	return config.DB.Save(user).Error
+}
+
+func (r *userRepository) UpdateFields(id uint, updates map[string]interface{}) error {
+	return config.DB.
+		Session(&gorm.Session{SkipHooks: true}).
+		Model(&models.User{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(updates).Error
+}
+
+func (r *userRepository) UpdateWageByRole(role string, wage int64) error {
+	return config.DB.
+		Model(&models.User{}).
+		Where("role = ? AND deleted_at IS NULL", role).
+		Update("current_wage", wage).Error
 }
 
 func (r *userRepository) SoftDelete(id uint) error {

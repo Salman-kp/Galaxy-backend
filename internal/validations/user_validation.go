@@ -2,6 +2,7 @@ package validations
 
 import (
 	"errors"
+	"event-management-backend/internal/domain/models"
 	"regexp"
 )
 
@@ -10,6 +11,9 @@ var (
 	phoneRegex = regexp.MustCompile(`^[0-9]{10}$`)
 )
 
+//
+// ---------------- CREATE USER ----------------
+//
 type CreateUserRequest struct {
 	Name          string `json:"name"`
 	Phone         string `json:"phone"`
@@ -18,34 +22,39 @@ type CreateUserRequest struct {
 	Branch        string `json:"branch"`
 	StartingPoint string `json:"starting_point"`
 	BloodGroup    string `json:"blood_group"`
-	DOB           string `json:"dob"`
+	DOB           string `json:"dob"` // YYYY-MM-DD
 }
 
 func (r *CreateUserRequest) Validate() error {
 	if !nameRegex.MatchString(r.Name) {
 		return errors.New("invalid name")
 	}
+
 	if !phoneRegex.MatchString(r.Phone) {
 		return errors.New("invalid phone")
 	}
+
 	if len(r.Password) < 4 {
 		return errors.New("password must be at least 4 characters")
 	}
-	if r.Role == "" {
-		return errors.New("role is required")
+
+	if !models.ValidateRole(r.Role) {
+		return errors.New("invalid role")
 	}
 	return nil
 }
 
+//
+// ---------------- UPDATE USER (ADMIN) ----------------
+//
 type UpdateUserRequest struct {
-	ID            uint   `json:"id"`
 	Name          string `json:"name"`
 	Phone         string `json:"phone"`
 	Role          string `json:"role"`
 	Branch        string `json:"branch"`
 	StartingPoint string `json:"starting_point"`
 	BloodGroup    string `json:"blood_group"`
-	DOB           string `json:"dob"`
+	DOB           string `json:"dob"` // YYYY-MM-DD
 	Status        string `json:"status"`
 }
 
@@ -53,18 +62,24 @@ func (r *UpdateUserRequest) Validate() error {
 	if r.Name != "" && !nameRegex.MatchString(r.Name) {
 		return errors.New("invalid name")
 	}
+
 	if r.Phone != "" && !phoneRegex.MatchString(r.Phone) {
 		return errors.New("invalid phone")
 	}
-	if r.Role == "" {
-		return errors.New("role is required")
+
+	if r.Role != "" && !models.ValidateRole(r.Role) {
+		return errors.New("invalid role")
 	}
-	if r.Status == "" {
-		return errors.New("status is required")
+
+	if r.Status != "" && !models.ValidateStatus(r.Status) {
+		return errors.New("invalid status")
 	}
 	return nil
 }
 
+//
+// ---------------- ADMIN SELF PROFILE UPDATE ----------------
+//
 type UpdateAdminSelfProfileRequest struct {
 	Name          string `json:"name"`
 	Phone         string `json:"phone"`
@@ -78,6 +93,7 @@ func (r *UpdateAdminSelfProfileRequest) Validate() error {
 	if r.Name != "" && !nameRegex.MatchString(r.Name) {
 		return errors.New("invalid name")
 	}
+
 	if r.Phone != "" && !phoneRegex.MatchString(r.Phone) {
 		return errors.New("invalid phone")
 	}
