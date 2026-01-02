@@ -23,7 +23,9 @@ func (r *eventRepository) Create(event *models.Event) error {
 
 func (r *eventRepository) FindByID(id uint) (*models.Event, error) {
 	var event models.Event
-	err := config.DB.First(&event, id).Error
+	err := config.DB.
+		Where("id = ? AND deleted_at IS NULL", id).
+		First(&event).Error
 	return &event, err
 }
 
@@ -31,7 +33,8 @@ func (r *eventRepository) FindByIDForUpdate(tx *gorm.DB, id uint) (*models.Event
 	var event models.Event
 	err := tx.
 		Clauses(clause.Locking{Strength: "UPDATE"}).
-		First(&event, id).Error
+		Where("id = ? AND deleted_at IS NULL", id).
+		First(&event).Error
 	return &event, err
 }
 
@@ -60,6 +63,7 @@ func (r *eventRepository) ListAvailable(date time.Time) ([]models.Event, error) 
 	var events []models.Event
 
 	q := config.DB.Model(&models.Event{}).
+		Where("deleted_at IS NULL").
 		Where("status IN ?", []string{
 			models.EventStatusUpcoming,
 			models.EventStatusOngoing,
