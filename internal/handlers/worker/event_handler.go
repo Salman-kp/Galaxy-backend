@@ -1,9 +1,10 @@
 package worker
 
 import (
+	"net/http"
+
 	"event-management-backend/internal/services/worker"
 	"event-management-backend/internal/utils"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,9 +19,21 @@ func NewWorkerEventHandler(service *worker.WorkerEventService) *WorkerEventHandl
 
 // ---------------- LIST AVAILABLE EVENTS ----------------
 func (h *WorkerEventHandler) ListEvents(c *gin.Context) {
-	events, err := h.service.ListAvailableEvents()
+	userID := c.GetUint("user_id")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	role := c.GetString("role")
+	if role == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "role not found"})
+		return
+	}
+
+	events, err := h.service.ListAvailableEvents(userID, role)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch events"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

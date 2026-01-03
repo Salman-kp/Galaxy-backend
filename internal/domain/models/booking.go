@@ -29,6 +29,8 @@ type Booking struct {
 	FineAmount  int64          `gorm:"default:0" json:"fine_amount"`
 	TotalAmount int64          `gorm:"default:0" json:"total_amount"`
 	
+	Event       Event          `gorm:"foreignKey:EventID" json:"event"`
+
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`

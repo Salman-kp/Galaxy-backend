@@ -59,21 +59,53 @@ func (r *eventRepository) ListAll(status string, date string) ([]models.Event, e
 	return events, err
 }
 
-func (r *eventRepository) ListAvailable(date time.Time) ([]models.Event, error) {
+// ---------------- CAPTAIN ----------------
+func (r *eventRepository) ListAvailableForCaptain(userID uint, date time.Time) ([]models.Event, error) {
+	return r.listAvailableByRole(userID, date, "remaining_captains > 0")
+}
+
+// ---------------- SUB CAPTAIN ----------------
+func (r *eventRepository) ListAvailableForSubCaptain(userID uint, date time.Time) ([]models.Event, error) {
+	return r.listAvailableByRole(userID, date, "remaining_sub_captains > 0")
+}
+
+// ---------------- MAIN BOY ----------------
+func (r *eventRepository) ListAvailableForMainBoy(userID uint, date time.Time) ([]models.Event, error) {
+	return r.listAvailableByRole(userID, date, "remaining_main_boys > 0")
+}
+
+// ---------------- JUNIOR ----------------
+func (r *eventRepository) ListAvailableForJunior(userID uint, date time.Time) ([]models.Event, error) {
+	return r.listAvailableByRole(userID, date, "remaining_juniors > 0")
+}
+
+// ---------------- COMMON INTERNAL QUERY ----------------
+func (r *eventRepository) listAvailableByRole(
+	userID uint,
+	date time.Time,
+	roleCondition string,
+) ([]models.Event, error) {
+
 	var events []models.Event
 
 	q := config.DB.Model(&models.Event{}).
-		Where("deleted_at IS NULL").
-		Where("status IN ?", []string{
-			models.EventStatusUpcoming,
-			models.EventStatusOngoing,
-		})
+		Where("events.deleted_at IS NULL").
+		Where("events.status = ?", models.EventStatusUpcoming).
+		Where(roleCondition).
+		Where(`
+			events.id NOT IN (
+				SELECT event_id
+				FROM bookings
+				WHERE user_id = ?
+				AND deleted_at IS NULL
+			)
+		`, userID)
 
 	if !date.IsZero() {
-		q = q.Where("date >= ?", date)
+		q = q.Where("events.date >= ?", date)
 	}
 
-	err := q.Order("date ASC").Find(&events).Error
+	err := q.Order("events.date ASC").Find(&events).Error
 	return events, err
 }
 

@@ -3,7 +3,7 @@ package captain
 import (
 	"net/http"
 
-    "event-management-backend/internal/services/captain"
+	"event-management-backend/internal/services/captain"
 	"event-management-backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -19,7 +19,13 @@ func NewCaptainEventHandler(service *captain.CaptainEventService) *CaptainEventH
 
 // ---------------- LIST AVAILABLE EVENTS ----------------
 func (h *CaptainEventHandler) ListEvents(c *gin.Context) {
-	events, err := h.service.ListAvailableEvents()
+	userID := c.GetUint("user_id")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	events, err := h.service.ListAvailableEvents(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch events"})
 		return
@@ -47,13 +53,19 @@ func (h *CaptainEventHandler) GetEvent(c *gin.Context) {
 
 // ---------------- START EVENT ----------------
 func (h *CaptainEventHandler) StartEvent(c *gin.Context) {
+	captainID := c.GetUint("user_id")
+	if captainID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	id := utils.ParseUintParam(c.Param("id"))
 	if id == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event id"})
 		return
 	}
 
-	if err := h.service.StartEvent(id); err != nil {
+	if err := h.service.StartEvent(captainID, id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -63,13 +75,19 @@ func (h *CaptainEventHandler) StartEvent(c *gin.Context) {
 
 // ---------------- COMPLETE EVENT ----------------
 func (h *CaptainEventHandler) CompleteEvent(c *gin.Context) {
+	captainID := c.GetUint("user_id")
+	if captainID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	id := utils.ParseUintParam(c.Param("id"))
 	if id == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event id"})
 		return
 	}
 
-	if err := h.service.CompleteEvent(id); err != nil {
+	if err := h.service.CompleteEvent(captainID, id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

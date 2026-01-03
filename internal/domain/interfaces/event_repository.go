@@ -14,6 +14,12 @@ type EventRepository interface {
 	FindByID(id uint) (*models.Event, error)
 	FindByIDForUpdate(tx *gorm.DB, id uint) (*models.Event, error)
 	ListAll(status string, date string) ([]models.Event, error)
-	ListAvailable(fromDate time.Time) ([]models.Event, error)
+
+	// ---- ROLE BASED AVAILABILITY (EXCLUDES ALREADY BOOKED EVENTS) ----
+	ListAvailableForCaptain(userID uint, fromDate time.Time) ([]models.Event, error)
+	ListAvailableForSubCaptain(userID uint, fromDate time.Time) ([]models.Event, error)
+	ListAvailableForMainBoy(userID uint, fromDate time.Time) ([]models.Event, error)
+	ListAvailableForJunior(userID uint, fromDate time.Time) ([]models.Event, error)
+
 	SoftDelete(id uint) error
 }

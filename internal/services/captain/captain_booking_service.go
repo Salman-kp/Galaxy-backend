@@ -9,7 +9,17 @@ import (
 	"event-management-backend/internal/domain/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+// ======================= RESPONSE DTO =======================
+// What UI consumes: Event card + my booking
+type CaptainBookingResponse struct {
+	Event     models.Event `json:"event"`
+	MyBooking BookingDTO  `json:"my_booking"`
+}
+
+// ======================= SERVICE =======================
 
 type CaptainBookingService struct {
 	bookingRepo interfaces.BookingRepository
@@ -29,14 +39,17 @@ func NewCaptainBookingService(
 	}
 }
 
+//
 // ======================= BOOK EVENT =======================
-// Captain books an event for himself
+//
 func (s *CaptainBookingService) BookEvent(userID, eventID uint) error {
 	return config.DB.Transaction(func(tx *gorm.DB) error {
+
 		user, err := s.userRepo.FindByID(userID)
 		if err != nil {
 			return errors.New("user not found")
 		}
+
 		event, err := s.eventRepo.FindByIDForUpdate(tx, eventID)
 		if err != nil {
 			return errors.New("event not found")
@@ -46,7 +59,6 @@ func (s *CaptainBookingService) BookEvent(userID, eventID uint) error {
 			return errors.New("event is not open for booking")
 		}
 
-		// prevent duplicate booking
 		if _, err := s.bookingRepo.FindByEventAndUser(eventID, userID); err == nil {
 			return errors.New("already booked")
 		}
@@ -56,7 +68,6 @@ func (s *CaptainBookingService) BookEvent(userID, eventID uint) error {
 		}
 
 		event.RemainingCaptains--
-
 		if err := tx.Save(event).Error; err != nil {
 			return err
 		}
@@ -73,71 +84,176 @@ func (s *CaptainBookingService) BookEvent(userID, eventID uint) error {
 	})
 }
 
-// ======================= LIST MY BOOKINGS =======================
-func (s *CaptainBookingService) ListMyBookings(userID uint) ([]models.Booking, error) {
-	return s.bookingRepo.ListByUser(userID)
+//
+// ======================= INTERNAL HELPER =======================
+//
+func mapBookingResponses(bookings []models.Booking) []CaptainBookingResponse {
+	res := make([]CaptainBookingResponse, 0, len(bookings))
+
+	for _, b := range bookings {
+		res = append(res, CaptainBookingResponse{
+			Event: b.Event,
+			MyBooking: BookingDTO{
+				ID:          b.ID,
+				EventID:     b.EventID,
+				Status:      b.Status,
+				Role:        b.Role,
+				BaseAmount:  b.BaseAmount,
+				ExtraAmount: b.ExtraAmount,
+				TAAmount:    b.TAAmount,
+				BonusAmount: b.BonusAmount,
+				FineAmount:  b.FineAmount,
+				TotalAmount: b.TotalAmount,
+				CreatedAt:   b.CreatedAt.Format(time.RFC3339),
+			},
+		})
+	}
+
+	return res
 }
+//
+// ======================= LIST MY BOOKINGS =======================
+//
+func (s *CaptainBookingService) ListMyBookings(
+	userID uint,
+) ([]CaptainBookingResponse, error) {
 
-// ======================= LIST TODAY BOOKINGS =======================
-func (s *CaptainBookingService) ListTodayBookings(userID uint) ([]models.Booking, error) {
 	var bookings []models.Booking
-	today := time.Now().Truncate(24 * time.Hour)
-
 	err := config.DB.
-		Joins("JOIN events ON events.id = bookings.event_id").
-		Where(
-			"bookings.user_id = ? AND events.date = ? AND bookings.deleted_at IS NULL",
-			userID,
-			today,
-		).
+		Preload("Event").
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Order("created_at DESC").
 		Find(&bookings).Error
 
-	return bookings, err
+	return mapBookingResponses(bookings), err
 }
 
-// ======================= LIST UPCOMING BOOKINGS =======================
-func (s *CaptainBookingService) ListUpcomingBookings(userID uint) ([]models.Booking, error) {
+//
+// ======================= TODAY BOOKINGS =======================
+//
+func (s *CaptainBookingService) ListTodayBookings(
+	userID uint,
+) ([]CaptainBookingResponse, error) {
+
 	var bookings []models.Booking
-	today := time.Now().Truncate(24 * time.Hour)
+	start := time.Now().Truncate(24 * time.Hour)
+	end := start.Add(24 * time.Hour)
 
 	err := config.DB.
+		Preload("Event").
 		Joins("JOIN events ON events.id = bookings.event_id").
-		Where(
-			"bookings.user_id = ? AND events.date > ? AND bookings.deleted_at IS NULL",
-			userID,
-			today,
-		).
+		Where(`
+			bookings.user_id = ?
+			AND events.date >= ?
+			AND events.date < ?
+			AND bookings.deleted_at IS NULL
+		`, userID, start, end).
 		Order("events.date ASC").
 		Find(&bookings).Error
 
-	return bookings, err
+	return mapBookingResponses(bookings), err
 }
 
-// ======================= LIST COMPLETED BOOKINGS =======================
-func (s *CaptainBookingService) ListCompletedBookings(userID uint) ([]models.Booking, error) {
+//
+// ======================= UPCOMING BOOKINGS =======================
+//
+func (s *CaptainBookingService) ListUpcomingBookings(
+	userID uint,
+) ([]CaptainBookingResponse, error) {
+
 	var bookings []models.Booking
+	today := time.Now().Truncate(24 * time.Hour)
 
 	err := config.DB.
+		Preload("Event").
 		Joins("JOIN events ON events.id = bookings.event_id").
-		Where(
-			"bookings.user_id = ? AND events.status = ? AND bookings.deleted_at IS NULL",
-			userID,
-			models.EventStatusCompleted,
-		).
+		Where(`
+			bookings.user_id = ?
+			AND events.date > ?
+			AND bookings.deleted_at IS NULL
+		`, userID, today).
+		Order("events.date ASC").
+		Find(&bookings).Error
+
+	return mapBookingResponses(bookings), err
+}
+
+//
+// ======================= COMPLETED BOOKINGS =======================
+//
+func (s *CaptainBookingService) ListCompletedBookings(
+	userID uint,
+) ([]CaptainBookingResponse, error) {
+
+	var bookings []models.Booking
+	err := config.DB.
+		Preload("Event").
+		Joins("JOIN events ON events.id = bookings.event_id").
+		Where(`
+			bookings.user_id = ?
+			AND events.status = ?
+			AND bookings.deleted_at IS NULL
+		`, userID, models.EventStatusCompleted).
 		Order("events.date DESC").
 		Find(&bookings).Error
 
-	return bookings, err
+	return mapBookingResponses(bookings), err
 }
 
+//
 // ======================= LIST EVENT BOOKINGS =======================
-// For attendance table
-func (s *CaptainBookingService) ListEventBookings(eventID uint) ([]models.Booking, error) {
-	return s.bookingRepo.ListByEvent(eventID)
+func (s *CaptainBookingService) ListEventBookings(
+	captainID uint,
+	eventID uint,
+) ([]AttendanceRowResponse, error) {
+
+	// 1️⃣ Verify captain authority
+	var count int64
+	if err := config.DB.
+		Model(&models.Booking{}).
+		Where(
+			"event_id = ? AND user_id = ? AND role = ? AND deleted_at IS NULL",
+			eventID,
+			captainID,
+			models.RoleCaptain,
+		).
+		Count(&count).Error; err != nil || count == 0 {
+		return nil, errors.New("you are not authorized to view attendance for this event")
+	}
+
+	// 2️⃣ Fetch attendance data
+	var rows []AttendanceRowResponse
+
+	err := config.DB.
+		Table("bookings").
+		Select(`
+			bookings.id AS booking_id,
+			bookings.user_id,
+			users.name AS user_name,
+			bookings.role,
+			bookings.status,
+			bookings.base_amount,
+			bookings.extra_amount,
+			bookings.ta_amount,
+			bookings.bonus_amount,
+			bookings.fine_amount,
+			bookings.total_amount
+		`).
+		Joins("JOIN users ON users.id = bookings.user_id").
+		Where(
+			"bookings.event_id = ? AND bookings.deleted_at IS NULL",
+			eventID,
+		).
+		Order("bookings.role ASC").
+		Scan(&rows).Error
+
+	return rows, err
 }
 
+
+//
 // ======================= UPDATE ATTENDANCE =======================
-// Captain updates attendance & wage
+//
 func (s *CaptainBookingService) UpdateAttendance(
 	captainID uint,
 	bookingID uint,
@@ -149,18 +265,38 @@ func (s *CaptainBookingService) UpdateAttendance(
 
 	return config.DB.Transaction(func(tx *gorm.DB) error {
 
-		// Lock booking
-		booking, err := s.bookingRepo.FindByIDForUpdate(tx, bookingID)
-		if err != nil {
+		var booking models.Booking
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND deleted_at IS NULL", bookingID).
+			First(&booking).Error; err != nil {
 			return errors.New("booking not found")
 		}
 
-		// 🔒 OWNERSHIP CHECK (THIS IS THE LINE YOU ASKED ABOUT)
-		if booking.UserID != captainID {
-			return errors.New("you are not assigned to this event")
+		var event models.Event
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND deleted_at IS NULL", booking.EventID).
+			First(&event).Error; err != nil {
+			return errors.New("event not found")
 		}
 
-		// Validate status
+		if event.Status != models.EventStatusOngoing {
+			return errors.New("attendance can be updated only during ongoing events")
+		}
+
+		var captainBooking models.Booking
+		if err := tx.
+			Where(
+				"event_id = ? AND user_id = ? AND role = ? AND deleted_at IS NULL",
+				event.ID,
+				captainID,
+				models.RoleCaptain,
+			).
+			First(&captainBooking).Error; err != nil {
+			return errors.New("you are not authorized to update attendance")
+		}
+
 		switch status {
 		case models.BookingStatusBooked,
 			models.BookingStatusPresent,
@@ -170,15 +306,8 @@ func (s *CaptainBookingService) UpdateAttendance(
 			return errors.New("invalid booking status")
 		}
 
-		// Lock event
-		event, err := s.eventRepo.FindByIDForUpdate(tx, booking.EventID)
-		if err != nil {
-			return errors.New("event not found")
-		}
-
 		booking.Status = status
 
-		// ABSENT → wipe everything
 		if status == models.BookingStatusAbsent {
 			booking.BaseAmount = 0
 			booking.ExtraAmount = 0
@@ -186,11 +315,9 @@ func (s *CaptainBookingService) UpdateAttendance(
 			booking.BonusAmount = 0
 			booking.FineAmount = 0
 			booking.TotalAmount = 0
-
-			return s.bookingRepo.Update(booking)
+			return tx.Save(&booking).Error
 		}
 
-		// Validate amounts
 		if ta < 0 || bonus < 0 || fine < 0 {
 			return errors.New("amounts cannot be negative")
 		}
@@ -199,7 +326,6 @@ func (s *CaptainBookingService) UpdateAttendance(
 		booking.BonusAmount = bonus
 		booking.FineAmount = fine
 
-		// Extra wage
 		if event.LongWork {
 			booking.ExtraAmount = event.ExtraWageAmount
 		} else {
@@ -217,6 +343,6 @@ func (s *CaptainBookingService) UpdateAttendance(
 			booking.TotalAmount = 0
 		}
 
-		return s.bookingRepo.Update(booking)
+		return tx.Save(&booking).Error
 	})
 }

@@ -27,13 +27,13 @@ func (h *AdminBookingHandler) ListEventBookings(c *gin.Context) {
 		return
 	}
 
-	bookings, err := h.service.ListEventBookings(eventID)
+	data, err := h.service.ListEventBookings(eventID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bookings"})
 		return
 	}
 
-	c.JSON(http.StatusOK, bookings)
+	c.JSON(http.StatusOK, data)
 }
 
 // ---------------- REMOVE USER FROM EVENT ----------------

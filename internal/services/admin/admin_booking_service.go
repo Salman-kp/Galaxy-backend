@@ -29,9 +29,38 @@ func NewAdminBookingService(
 //
 // ---------------- LIST EVENT BOOKINGS ----------------
 //
-func (s *AdminBookingService) ListEventBookings(eventID uint) ([]models.Booking, error) {
-	return s.bookingRepo.ListByEvent(eventID)
+func (s *AdminBookingService) ListEventBookings(
+	eventID uint,
+) ([]AttendanceRowResponse, error) {
+
+	var rows []AttendanceRowResponse
+
+	err := config.DB.
+		Table("bookings").
+		Select(`
+			bookings.id AS booking_id,
+			bookings.user_id,
+			users.name AS user_name,
+			bookings.role,
+			bookings.status,
+			bookings.base_amount,
+			bookings.extra_amount,
+			bookings.ta_amount,
+			bookings.bonus_amount,
+			bookings.fine_amount,
+			bookings.total_amount
+		`).
+		Joins("JOIN users ON users.id = bookings.user_id").
+		Where(
+			"bookings.event_id = ? AND bookings.deleted_at IS NULL",
+			eventID,
+		).
+		Order("bookings.role ASC").
+		Scan(&rows).Error
+
+	return rows, err
 }
+
 
 //
 // ---------------- REMOVE USER FROM EVENT ----------------
