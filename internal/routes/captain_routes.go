@@ -43,14 +43,13 @@ func CaptainRoutes(r *gin.Engine) {
 	captainGroup.POST("/events/:event_id/book", bookingHandler.BookEvent)
 
 	// BOOKING LISTS
-	captainGroup.GET("/bookings", bookingHandler.ListMyBookings)
 	captainGroup.GET("/bookings/today", bookingHandler.ListTodayBookings)
 	captainGroup.GET("/bookings/upcoming", bookingHandler.ListUpcomingBookings)
 	captainGroup.GET("/bookings/completed", bookingHandler.ListCompletedBookings)
 
-	// GIN-SAFE EVENT BOOKINGS
-	captainGroup.GET("/events/bookings/:event_id", bookingHandler.ListEventBookings)
-
 	// ATTENDANCE
-	captainGroup.PUT("/bookings/:booking_id/attendance", bookingHandler.UpdateAttendance)
+	captainGroup.GET("/event-attendance/:event_id", bookingHandler.ListEventBookings)
+	captainGroup.PUT("/event-attendance/:event_id", bookingHandler.UpdateAttendance)
+	captainGroup.GET("/event-attendance/:event_id/status/:status", bookingHandler.ListEventBookingsByStatus)
+	captainGroup.GET("/event-attendance/:event_id/search", bookingHandler.SearchEventBookingsByName)
 }

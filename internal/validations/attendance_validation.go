@@ -7,6 +7,7 @@ import (
 )
 
 type UpdateAttendanceRequest struct {
+	BookingID   uint   `json:"booking_id" binding:"required"`
 	Status      string `json:"status" binding:"required"`
 	TAAmount    int64  `json:"ta_amount"`
 	BonusAmount int64  `json:"bonus_amount"`
@@ -14,18 +15,22 @@ type UpdateAttendanceRequest struct {
 }
 
 func (r *UpdateAttendanceRequest) Validate() error {
-	// ---------------- STATUS VALIDATION ----------------
+	// ---------------- BOOKING ID ----------------
+	if r.BookingID == 0 {
+		return errors.New("booking id is required")
+	}
+
+	// ---------------- STATUS ----------------
 	switch r.Status {
 	case models.BookingStatusBooked,
 		models.BookingStatusPresent,
 		models.BookingStatusCompleted,
 		models.BookingStatusAbsent:
-		// valid
 	default:
 		return errors.New("invalid booking status")
 	}
 
-	// ---------------- AMOUNT VALIDATION ----------------
+	// ---------------- AMOUNTS ----------------
 	if r.TAAmount < 0 {
 		return errors.New("ta amount cannot be negative")
 	}
@@ -37,7 +42,6 @@ func (r *UpdateAttendanceRequest) Validate() error {
 	}
 
 	// ---------------- ABSENT RULE ----------------
-	// If ABSENT → amounts must be zero
 	if r.Status == models.BookingStatusAbsent {
 		if r.TAAmount != 0 || r.BonusAmount != 0 || r.FineAmount != 0 {
 			return errors.New("amounts must be zero when status is absent")

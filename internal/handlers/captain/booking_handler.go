@@ -18,9 +18,7 @@ func NewCaptainBookingHandler(service *captain.CaptainBookingService) *CaptainBo
 	return &CaptainBookingHandler{service: service}
 }
 
-//
 // ======================= BOOK EVENT =======================
-//
 func (h *CaptainBookingHandler) BookEvent(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
@@ -38,26 +36,7 @@ func (h *CaptainBookingHandler) BookEvent(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "event booked successfully"})
 }
 
-//
-// ======================= LIST MY BOOKINGS =======================
-// Home / fallback list
-//
-func (h *CaptainBookingHandler) ListMyBookings(c *gin.Context) {
-	userID := c.GetUint("user_id")
-
-	data, err := h.service.ListMyBookings(userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bookings"})
-		return
-	}
-
-	c.JSON(http.StatusOK, data)
-}
-
-//
-// ======================= LIST TODAY BOOKINGS =======================
-// Today tab
-//
+// ======================= TODAY =======================
 func (h *CaptainBookingHandler) ListTodayBookings(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
@@ -70,10 +49,7 @@ func (h *CaptainBookingHandler) ListTodayBookings(c *gin.Context) {
 	c.JSON(http.StatusOK, data)
 }
 
-//
-// ======================= LIST UPCOMING BOOKINGS =======================
-// Upcoming tab
-//
+// ======================= UPCOMING =======================
 func (h *CaptainBookingHandler) ListUpcomingBookings(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
@@ -86,10 +62,7 @@ func (h *CaptainBookingHandler) ListUpcomingBookings(c *gin.Context) {
 	c.JSON(http.StatusOK, data)
 }
 
-//
-// ======================= LIST COMPLETED BOOKINGS =======================
-// Completed tab
-//
+// ======================= COMPLETED =======================
 func (h *CaptainBookingHandler) ListCompletedBookings(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
@@ -102,10 +75,7 @@ func (h *CaptainBookingHandler) ListCompletedBookings(c *gin.Context) {
 	c.JSON(http.StatusOK, data)
 }
 
-//
-// ======================= LIST EVENT BOOKINGS =======================
-// Attendance table (only captain of event)
-//
+// ======================= EVENT ATTENDANCE =======================
 func (h *CaptainBookingHandler) ListEventBookings(c *gin.Context) {
 	captainID := c.GetUint("user_id")
 
@@ -124,15 +94,9 @@ func (h *CaptainBookingHandler) ListEventBookings(c *gin.Context) {
 	c.JSON(http.StatusOK, data)
 }
 
-//
 // ======================= UPDATE ATTENDANCE =======================
-//
 func (h *CaptainBookingHandler) UpdateAttendance(c *gin.Context) {
-	bookingID := utils.ParseUintParam(c.Param("booking_id"))
-	if bookingID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid booking id"})
-		return
-	}
+	captainID := c.GetUint("user_id")
 
 	var req validations.UpdateAttendanceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -145,10 +109,9 @@ func (h *CaptainBookingHandler) UpdateAttendance(c *gin.Context) {
 		return
 	}
 
-	captainID := c.GetUint("user_id")
 	if err := h.service.UpdateAttendance(
 		captainID,
-		bookingID,
+		req.BookingID,
 		req.Status,
 		req.TAAmount,
 		req.BonusAmount,
@@ -159,4 +122,43 @@ func (h *CaptainBookingHandler) UpdateAttendance(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "attendance updated successfully"})
+}
+// ======================= FILTER BY STATUS =======================
+func (h *CaptainBookingHandler) ListEventBookingsByStatus(c *gin.Context) {
+	captainID := c.GetUint("user_id")
+
+	eventID := utils.ParseUintParam(c.Param("event_id"))
+	status := c.Param("status")
+	if eventID == 0 || status == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid params"})
+		return
+	}
+
+	data, err := h.service.ListEventBookingsByStatus(captainID, eventID, status)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, data)
+}
+
+// ======================= SEARCH BY NAME =======================
+func (h *CaptainBookingHandler) SearchEventBookingsByName(c *gin.Context) {
+	captainID := c.GetUint("user_id")
+
+	eventID := utils.ParseUintParam(c.Param("event_id"))
+	name := c.Query("name")
+	if eventID == 0 || name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid params"})
+		return
+	}
+
+	data, err := h.service.SearchEventBookingsByName(captainID, eventID, name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, data)
 }

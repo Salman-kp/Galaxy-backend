@@ -12,14 +12,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// ======================= RESPONSE DTO =======================
-// What UI consumes: Event card + my booking
 type CaptainBookingResponse struct {
 	Event     models.Event `json:"event"`
 	MyBooking BookingDTO  `json:"my_booking"`
 }
-
-// ======================= SERVICE =======================
 
 type CaptainBookingService struct {
 	bookingRepo interfaces.BookingRepository
@@ -39,9 +35,7 @@ func NewCaptainBookingService(
 	}
 }
 
-//
 // ======================= BOOK EVENT =======================
-//
 func (s *CaptainBookingService) BookEvent(userID, eventID uint) error {
 	return config.DB.Transaction(func(tx *gorm.DB) error {
 
@@ -84,9 +78,7 @@ func (s *CaptainBookingService) BookEvent(userID, eventID uint) error {
 	})
 }
 
-//
 // ======================= INTERNAL HELPER =======================
-//
 func mapBookingResponses(bookings []models.Booking) []CaptainBookingResponse {
 	res := make([]CaptainBookingResponse, 0, len(bookings))
 
@@ -111,30 +103,9 @@ func mapBookingResponses(bookings []models.Booking) []CaptainBookingResponse {
 
 	return res
 }
-//
-// ======================= LIST MY BOOKINGS =======================
-//
-func (s *CaptainBookingService) ListMyBookings(
-	userID uint,
-) ([]CaptainBookingResponse, error) {
 
-	var bookings []models.Booking
-	err := config.DB.
-		Preload("Event").
-		Where("user_id = ? AND deleted_at IS NULL", userID).
-		Order("created_at DESC").
-		Find(&bookings).Error
-
-	return mapBookingResponses(bookings), err
-}
-
-//
 // ======================= TODAY BOOKINGS =======================
-//
-func (s *CaptainBookingService) ListTodayBookings(
-	userID uint,
-) ([]CaptainBookingResponse, error) {
-
+func (s *CaptainBookingService) ListTodayBookings(userID uint) ([]CaptainBookingResponse, error) {
 	var bookings []models.Booking
 	start := time.Now().Truncate(24 * time.Hour)
 	end := start.Add(24 * time.Hour)
@@ -154,13 +125,8 @@ func (s *CaptainBookingService) ListTodayBookings(
 	return mapBookingResponses(bookings), err
 }
 
-//
 // ======================= UPCOMING BOOKINGS =======================
-//
-func (s *CaptainBookingService) ListUpcomingBookings(
-	userID uint,
-) ([]CaptainBookingResponse, error) {
-
+func (s *CaptainBookingService) ListUpcomingBookings(userID uint) ([]CaptainBookingResponse, error) {
 	var bookings []models.Booking
 	today := time.Now().Truncate(24 * time.Hour)
 
@@ -178,14 +144,10 @@ func (s *CaptainBookingService) ListUpcomingBookings(
 	return mapBookingResponses(bookings), err
 }
 
-//
 // ======================= COMPLETED BOOKINGS =======================
-//
-func (s *CaptainBookingService) ListCompletedBookings(
-	userID uint,
-) ([]CaptainBookingResponse, error) {
-
+func (s *CaptainBookingService) ListCompletedBookings(userID uint) ([]CaptainBookingResponse, error) {
 	var bookings []models.Booking
+
 	err := config.DB.
 		Preload("Event").
 		Joins("JOIN events ON events.id = bookings.event_id").
@@ -200,30 +162,17 @@ func (s *CaptainBookingService) ListCompletedBookings(
 	return mapBookingResponses(bookings), err
 }
 
-//
 // ======================= LIST EVENT BOOKINGS =======================
-func (s *CaptainBookingService) ListEventBookings(
-	captainID uint,
-	eventID uint,
-) ([]AttendanceRowResponse, error) {
-
-	// 1️⃣ Verify captain authority
+func (s *CaptainBookingService) ListEventBookings(captainID, eventID uint) ([]AttendanceRowResponse, error) {
 	var count int64
-	if err := config.DB.
-		Model(&models.Booking{}).
-		Where(
-			"event_id = ? AND user_id = ? AND role = ? AND deleted_at IS NULL",
-			eventID,
-			captainID,
-			models.RoleCaptain,
-		).
+	if err := config.DB.Model(&models.Booking{}).
+		Where("event_id=? AND user_id=? AND role=? AND deleted_at IS NULL",
+			eventID, captainID, models.RoleCaptain).
 		Count(&count).Error; err != nil || count == 0 {
 		return nil, errors.New("you are not authorized to view attendance for this event")
 	}
 
-	// 2️⃣ Fetch attendance data
 	var rows []AttendanceRowResponse
-
 	err := config.DB.
 		Table("bookings").
 		Select(`
@@ -240,42 +189,32 @@ func (s *CaptainBookingService) ListEventBookings(
 			bookings.total_amount
 		`).
 		Joins("JOIN users ON users.id = bookings.user_id").
-		Where(
-			"bookings.event_id = ? AND bookings.deleted_at IS NULL",
-			eventID,
-		).
+		Where("bookings.event_id = ? AND bookings.deleted_at IS NULL", eventID).
 		Order("bookings.role ASC").
 		Scan(&rows).Error
 
 	return rows, err
 }
 
-
-//
 // ======================= UPDATE ATTENDANCE =======================
-//
 func (s *CaptainBookingService) UpdateAttendance(
 	captainID uint,
 	bookingID uint,
 	status string,
-	ta int64,
-	bonus int64,
-	fine int64,
+	ta, bonus, fine int64,
 ) error {
 
 	return config.DB.Transaction(func(tx *gorm.DB) error {
 
 		var booking models.Booking
-		if err := tx.
-			Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND deleted_at IS NULL", bookingID).
 			First(&booking).Error; err != nil {
 			return errors.New("booking not found")
 		}
 
 		var event models.Event
-		if err := tx.
-			Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND deleted_at IS NULL", booking.EventID).
 			First(&event).Error; err != nil {
 			return errors.New("event not found")
@@ -286,14 +225,10 @@ func (s *CaptainBookingService) UpdateAttendance(
 		}
 
 		var captainBooking models.Booking
-		if err := tx.
-			Where(
-				"event_id = ? AND user_id = ? AND role = ? AND deleted_at IS NULL",
-				event.ID,
-				captainID,
-				models.RoleCaptain,
-			).
-			First(&captainBooking).Error; err != nil {
+		if err := tx.Where(
+			"event_id=? AND user_id=? AND role=? AND deleted_at IS NULL",
+			event.ID, captainID, models.RoleCaptain,
+		).First(&captainBooking).Error; err != nil {
 			return errors.New("you are not authorized to update attendance")
 		}
 
@@ -325,7 +260,6 @@ func (s *CaptainBookingService) UpdateAttendance(
 		booking.TAAmount = ta
 		booking.BonusAmount = bonus
 		booking.FineAmount = fine
-
 		if event.LongWork {
 			booking.ExtraAmount = event.ExtraWageAmount
 		} else {
@@ -345,4 +279,105 @@ func (s *CaptainBookingService) UpdateAttendance(
 
 		return tx.Save(&booking).Error
 	})
+}
+// ======================= FILTER BY STATUS =======================
+func (s *CaptainBookingService) ListEventBookingsByStatus(
+	captainID uint,
+	eventID uint,
+	status string,
+) ([]AttendanceRowResponse, error) {
+
+	switch status {
+	case models.BookingStatusBooked,
+		models.BookingStatusPresent,
+		models.BookingStatusAbsent,
+		models.BookingStatusCompleted:
+	default:
+		return []AttendanceRowResponse{}, errors.New("invalid booking status")
+	}
+
+	if err := s.verifyCaptain(captainID, eventID); err != nil {
+		return []AttendanceRowResponse{}, err
+	}
+
+	rows := make([]AttendanceRowResponse, 0)
+
+	err := config.DB.
+		Table("bookings").
+		Select(`
+			bookings.id AS booking_id,
+			bookings.user_id,
+			users.name AS user_name,
+			bookings.role,
+			bookings.status,
+			bookings.base_amount,
+			bookings.extra_amount,
+			bookings.ta_amount,
+			bookings.bonus_amount,
+			bookings.fine_amount,
+			bookings.total_amount
+		`).
+		Joins("JOIN users ON users.id = bookings.user_id").
+		Where(`
+			bookings.event_id = ?
+			AND bookings.status = ?
+			AND bookings.deleted_at IS NULL
+		`, eventID, status).
+		Order("users.name ASC").
+		Scan(&rows).Error
+
+	return rows, err
+}
+
+// ======================= SEARCH BY NAME =======================
+func (s *CaptainBookingService) SearchEventBookingsByName(
+	captainID uint,
+	eventID uint,
+	name string,
+) ([]AttendanceRowResponse, error) {
+	if err := s.verifyCaptain(captainID, eventID); err != nil {
+		return []AttendanceRowResponse{}, err
+	}
+
+	rows := make([]AttendanceRowResponse, 0)
+
+	err := config.DB.
+		Table("bookings").
+		Select(`
+			bookings.id AS booking_id,
+			bookings.user_id,
+			users.name AS user_name,
+			bookings.role,
+			bookings.status,
+			bookings.base_amount,
+			bookings.extra_amount,
+			bookings.ta_amount,
+			bookings.bonus_amount,
+			bookings.fine_amount,
+			bookings.total_amount
+		`).
+		Joins("JOIN users ON users.id = bookings.user_id").
+		Where(`
+			bookings.event_id = ?
+			AND users.name ILIKE ?
+			AND bookings.deleted_at IS NULL
+		`, eventID, "%"+name+"%").
+		Order("users.name ASC").
+		Scan(&rows).Error
+
+	return rows, err
+}
+
+// ======================= INTERNAL =======================
+func (s *CaptainBookingService) verifyCaptain(captainID, eventID uint) error {
+	var count int64
+	if err := config.DB.Model(&models.Booking{}).
+		Where(
+			"event_id=? AND user_id=? AND role=? AND deleted_at IS NULL",
+			eventID, captainID, models.RoleCaptain,
+		).
+		Count(&count).Error; err != nil || count == 0 {
+		return errors.New("you are not authorized for this event")
+	}
+	return nil
 }
