@@ -33,7 +33,7 @@ func (s *AdminBookingService) ListEventBookings(
 	eventID uint,
 ) ([]AttendanceRowResponse, error) {
 
-	var rows []AttendanceRowResponse
+	rows := make([]AttendanceRowResponse, 0)
 
 	err := config.DB.
 		Table("bookings").
@@ -51,16 +51,95 @@ func (s *AdminBookingService) ListEventBookings(
 			bookings.total_amount
 		`).
 		Joins("JOIN users ON users.id = bookings.user_id").
-		Where(
-			"bookings.event_id = ? AND bookings.deleted_at IS NULL",
-			eventID,
-		).
+		Where("bookings.event_id = ? AND bookings.deleted_at IS NULL", eventID).
 		Order("bookings.role ASC").
 		Scan(&rows).Error
 
 	return rows, err
 }
 
+//
+// ---------------- FILTER BY STATUS (ADMIN) ----------------
+//
+func (s *AdminBookingService) ListEventBookingsByStatus(
+	eventID uint,
+	status string,
+) ([]AttendanceRowResponse, error) {
+
+	switch status {
+	case models.BookingStatusBooked,
+		models.BookingStatusPresent,
+		models.BookingStatusAbsent,
+		models.BookingStatusCompleted:
+	default:
+		return []AttendanceRowResponse{}, errors.New("invalid booking status")
+	}
+
+	rows := make([]AttendanceRowResponse, 0)
+
+	err := config.DB.
+		Table("bookings").
+		Select(`
+			bookings.id AS booking_id,
+			bookings.user_id,
+			users.name AS user_name,
+			bookings.role,
+			bookings.status,
+			bookings.base_amount,
+			bookings.extra_amount,
+			bookings.ta_amount,
+			bookings.bonus_amount,
+			bookings.fine_amount,
+			bookings.total_amount
+		`).
+		Joins("JOIN users ON users.id = bookings.user_id").
+		Where(`
+			bookings.event_id = ?
+			AND bookings.status = ?
+			AND bookings.deleted_at IS NULL
+		`, eventID, status).
+		Order("users.name ASC").
+		Scan(&rows).Error
+
+	return rows, err
+}
+
+//
+// ---------------- SEARCH BY NAME (ADMIN) ----------------
+//
+func (s *AdminBookingService) SearchEventBookingsByName(
+	eventID uint,
+	name string,
+) ([]AttendanceRowResponse, error) {
+
+	rows := make([]AttendanceRowResponse, 0)
+
+	err := config.DB.
+		Table("bookings").
+		Select(`
+			bookings.id AS booking_id,
+			bookings.user_id,
+			users.name AS user_name,
+			bookings.role,
+			bookings.status,
+			bookings.base_amount,
+			bookings.extra_amount,
+			bookings.ta_amount,
+			bookings.bonus_amount,
+			bookings.fine_amount,
+			bookings.total_amount
+		`).
+		Joins("JOIN users ON users.id = bookings.user_id").
+		Where(`
+			bookings.event_id = ?
+			AND users.name ILIKE ?
+			AND bookings.deleted_at IS NULL
+		`, eventID, "%"+name+"%").
+		Order("users.name ASC").
+		Scan(&rows).Error
+
+	return rows, err
+}
 
 //
 // ---------------- REMOVE USER FROM EVENT ----------------

@@ -36,18 +36,52 @@ func (h *AdminBookingHandler) ListEventBookings(c *gin.Context) {
 	c.JSON(http.StatusOK, data)
 }
 
+// ---------------- FILTER BY STATUS (ADMIN) ----------------
+func (h *AdminBookingHandler) ListEventBookingsByStatus(c *gin.Context) {
+	eventID := utils.ParseUintParam(c.Param("event_id"))
+	status := c.Param("status")
+
+	if eventID == 0 || status == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid params"})
+		return
+	}
+
+	data, err := h.service.ListEventBookingsByStatus(eventID, status)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, data)
+}
+
+// ---------------- SEARCH BY NAME (ADMIN) ----------------
+func (h *AdminBookingHandler) SearchEventBookingsByName(c *gin.Context) {
+	eventID := utils.ParseUintParam(c.Param("event_id"))
+	name := c.Query("name")
+
+	if eventID == 0 || name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid params"})
+		return
+	}
+
+	data, err := h.service.SearchEventBookingsByName(eventID, name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, data)
+}
+
 // ---------------- REMOVE USER FROM EVENT ----------------
 
 func (h *AdminBookingHandler) RemoveUserFromEvent(c *gin.Context) {
 	eventID := utils.ParseUintParam(c.Param("event_id"))
-	if eventID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event id"})
-		return
-	}
-
 	bookingID := utils.ParseUintParam(c.Param("booking_id"))
-	if bookingID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid booking id"})
+
+	if eventID == 0 || bookingID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid params"})
 		return
 	}
 
@@ -60,8 +94,6 @@ func (h *AdminBookingHandler) RemoveUserFromEvent(c *gin.Context) {
 }
 
 // ---------------- UPDATE ATTENDANCE (ADMIN) ----------------
-// RETURNS UPDATED BOOKING WITH TOTAL AMOUNT
-//
 func (h *AdminBookingHandler) UpdateAttendance(c *gin.Context) {
 	bookingID := utils.ParseUintParam(c.Param("booking_id"))
 	if bookingID == 0 {
@@ -70,13 +102,20 @@ func (h *AdminBookingHandler) UpdateAttendance(c *gin.Context) {
 	}
 
 	var req validations.UpdateAttendanceRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.Validate() != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	req.BookingID = bookingID
+
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	booking, err := h.service.UpdateAttendance(
-		bookingID,
+		req.BookingID,
 		req.Status,
 		req.TAAmount,
 		req.BonusAmount,

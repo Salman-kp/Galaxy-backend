@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -242,8 +243,43 @@ func (h *AdminUserHandler) ResetPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "password reset"})
 }
 
+func (h *AdminUserHandler) ListUsersByRole(c *gin.Context) {
+	role := c.Param("role")
+
+	if !models.ValidateRole(role) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
+		return
+	}
+
+	data, err := h.service.ListUsersByRole(role)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, data)
+}
+
+func (h *AdminUserHandler) SearchUsersByPhone(c *gin.Context) {
+	phone := c.Query("phone")
+	if phone == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "phone is required"})
+		return
+	}
+
+	data, err := h.service.SearchUsersByPhone(phone)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, data)
+}
+
 func parseID(s string) uint {
-	var id uint
-	fmt.Sscanf(s, "%d", &id)
-	return id
+	id64, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return uint(id64)
 }

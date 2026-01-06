@@ -47,6 +47,8 @@ func AdminRoutes(r *gin.Engine) {
 	// USER ROUTES
 	adminGroup.POST("/users", userHandler.CreateUser)
 	adminGroup.GET("/users", userHandler.ListUsers)
+	adminGroup.GET("/users/role/:role", userHandler.ListUsersByRole)
+    adminGroup.GET("/users/search", userHandler.SearchUsersByPhone)
 	adminGroup.GET("/users/:id", userHandler.GetUser)
 	adminGroup.PUT("/users/:id", userHandler.UpdateUser)
 	adminGroup.PUT("/users/block/:id", userHandler.BlockUser)
@@ -71,6 +73,8 @@ func AdminRoutes(r *gin.Engine) {
 	adminGroup.DELETE("/events/bookings/:event_id/:booking_id", bookingHandler.RemoveUserFromEvent)
 	adminGroup.PUT("/bookings/:booking_id/attendance", bookingHandler.UpdateAttendance)
 	adminGroup.PUT("/bookings/:booking_id/wage", wageHandler.OverrideWage)
+    adminGroup.GET("/events/bookings/:event_id/status/:status",bookingHandler.ListEventBookingsByStatus)
+    adminGroup.GET("/events/bookings/:event_id/search",bookingHandler.SearchEventBookingsByName)
 
 	// DASHBOARD ROUTES
 	adminGroup.GET("/dashboard/summary", dashboardHandler.GetSummary)

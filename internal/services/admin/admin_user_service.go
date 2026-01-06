@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"event-management-backend/internal/config"
 	"event-management-backend/internal/domain/interfaces"
 	"event-management-backend/internal/domain/models"
 	"event-management-backend/internal/utils"
@@ -198,4 +199,30 @@ func (s *AdminUserService) ResetPassword(id uint, newPassword string) error {
 
 	user.Password = hashed
 	return s.repo.Update(user)
+}
+
+// ---------------- FILTER BY ROLE ----------------
+func (s *AdminUserService) ListUsersByRole(role string) ([]models.User, error) {
+	if !models.ValidateRole(role) {
+		return []models.User{}, errors.New("invalid role")
+	}
+
+	var users []models.User
+	err := config.DB.
+		Where("role = ? AND deleted_at IS NULL", role).
+		Order("created_at DESC").
+		Find(&users).Error
+
+	return users, err
+}
+
+// ---------------- SEARCH BY PHONE ----------------
+func (s *AdminUserService) SearchUsersByPhone(phone string) ([]models.User, error) {
+	var users []models.User
+	err := config.DB.
+		Where("phone ILIKE ? AND deleted_at IS NULL", "%"+phone+"%").
+		Order("created_at DESC").
+		Find(&users).Error
+
+	return users, err
 }
