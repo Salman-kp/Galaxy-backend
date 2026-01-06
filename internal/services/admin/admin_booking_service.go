@@ -286,3 +286,34 @@ func (s *AdminBookingService) UpdateAttendance(
 
 	return updatedBooking, err
 }
+
+func (s *AdminBookingService) GetEventWageSummary(
+	eventID uint,
+) (*EventWageSummary, error) {
+
+	var summary EventWageSummary
+
+	err := config.DB.
+		Table("bookings").
+		Select(`
+			COUNT(*)                       AS total_workers,
+			COALESCE(SUM(base_amount),0)   AS total_base_amount,
+			COALESCE(SUM(extra_amount),0)  AS total_extra_amount,
+			COALESCE(SUM(ta_amount),0)     AS total_ta_amount,
+			COALESCE(SUM(bonus_amount),0)  AS total_bonus_amount,
+			COALESCE(SUM(fine_amount),0)   AS total_fine_amount,
+			COALESCE(SUM(total_amount),0)  AS grand_total_amount
+		`).
+		Where(`
+			event_id = ?
+			AND deleted_at IS NULL
+			AND status != ?
+		`, eventID, models.BookingStatusAbsent).
+		Scan(&summary).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &summary, nil
+}

@@ -137,3 +137,22 @@ func (h *AdminBookingHandler) UpdateAttendance(c *gin.Context) {
 		"total_amount": booking.TotalAmount,
 	})
 }
+
+// ---------------- EVENT WAGE SUMMARY (ADMIN) ----------------
+// RETURNS TOTALS OF ALL WAGE COLUMNS FOR AN EVENT
+//
+func (h *AdminBookingHandler) GetEventWageSummary(c *gin.Context) {
+	eventID := utils.ParseUintParam(c.Param("event_id"))
+	if eventID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event id"})
+		return
+	}
+
+	summary, err := h.service.GetEventWageSummary(eventID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, summary)
+}

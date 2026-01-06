@@ -75,6 +75,7 @@ func AdminRoutes(r *gin.Engine) {
 	adminGroup.PUT("/bookings/:booking_id/wage", wageHandler.OverrideWage)
     adminGroup.GET("/events/bookings/:event_id/status/:status",bookingHandler.ListEventBookingsByStatus)
     adminGroup.GET("/events/bookings/:event_id/search",bookingHandler.SearchEventBookingsByName)
+    adminGroup.GET("/reports/events/:event_id/wages/summary",bookingHandler.GetEventWageSummary) 
 
 	// DASHBOARD ROUTES
 	adminGroup.GET("/dashboard/summary", dashboardHandler.GetSummary)

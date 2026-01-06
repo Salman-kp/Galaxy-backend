@@ -37,17 +37,17 @@ func WorkerRoutes(r *gin.Engine) {
 		middleware.WorkerMiddleware(), // sub_captain, main_boy, junior_boy
 	)
 
-	// ================= HOME =================
+	// HOME
 	workerGroup.GET("/events", eventHandler.ListEvents)
 	workerGroup.GET("/events/:id", eventHandler.GetEvent)
 
-	// ================= BOOK EVENT =================
+	// BOOK EVENT
 	workerGroup.POST("/events/:event_id/book", bookingHandler.BookEvent)
 
-	// ================= BOOKINGS =================
+	// BOOKINGS
 	workerGroup.GET("/bookings", bookingHandler.ListMyBookings)
 	workerGroup.GET("/bookings/:booking_id", bookingHandler.GetBookingDetails)
 
-	// ================= COMPLETED =================
+	// COMPLETED
 	workerGroup.GET("/bookings/completed", bookingHandler.ListCompletedBookings)
 }

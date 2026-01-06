@@ -368,6 +368,37 @@ func (s *CaptainBookingService) SearchEventBookingsByName(
 	return rows, err
 }
 
+// ======================= EVENT WAGE SUMMERY =======================
+func (s *CaptainBookingService) GetEventWageSummary(
+	eventID uint,
+) (*EventWageSummary, error) {
+
+	var summary EventWageSummary
+
+	err := config.DB.
+		Table("bookings").
+		Select(`
+			COUNT(id) as total_workers,
+			COALESCE(SUM(base_amount),0)  as base_total,
+			COALESCE(SUM(extra_amount),0) as extra_total,
+			COALESCE(SUM(ta_amount),0)    as ta_total,
+			COALESCE(SUM(bonus_amount),0) as bonus_total,
+			COALESCE(SUM(fine_amount),0)  as fine_total,
+			COALESCE(SUM(total_amount),0) as grand_total
+		`).
+		Where(`
+			event_id = ?
+			AND deleted_at IS NULL
+			AND status != ?
+		`, eventID, models.BookingStatusAbsent).
+		Scan(&summary).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &summary, nil
+}
 // ======================= INTERNAL =======================
 func (s *CaptainBookingService) verifyCaptain(captainID, eventID uint) error {
 	var count int64

@@ -52,4 +52,5 @@ func CaptainRoutes(r *gin.Engine) {
 	captainGroup.PUT("/event-attendance/:event_id", bookingHandler.UpdateAttendance)
 	captainGroup.GET("/event-attendance/:event_id/status/:status", bookingHandler.ListEventBookingsByStatus)
 	captainGroup.GET("/event-attendance/:event_id/search", bookingHandler.SearchEventBookingsByName)
+	captainGroup.GET("/reports/events/:event_id/wages/summary",bookingHandler.GetEventWageSummary)
 }

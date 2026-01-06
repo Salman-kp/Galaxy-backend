@@ -28,3 +28,15 @@ type AttendanceRowResponse struct {
 	FineAmount  int64 `json:"fine_amount"`
 	TotalAmount int64 `json:"total_amount"`
 }
+
+type EventWageSummary struct {
+	TotalWorkers int   `json:"total_workers"`
+
+	BaseTotal    int64 `json:"base_total"`
+	ExtraTotal   int64 `json:"extra_total"`
+	TATotal      int64 `json:"ta_total"`
+	BonusTotal   int64 `json:"bonus_total"`
+	FineTotal    int64 `json:"fine_total"`
+
+	GrandTotal   int64 `json:"grand_total"`
+}
