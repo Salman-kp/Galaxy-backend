@@ -20,7 +20,11 @@ func WorkerRoutes(r *gin.Engine) {
 	// ---------------- Services ----------------
 	jwtService := auth.NewJWTService()
 	eventService := worker.NewWorkerEventService(eventRepo)
-	bookingService := worker.NewWorkerBookingService(bookingRepo, eventRepo,userRepo)
+	bookingService := worker.NewWorkerBookingService(
+		bookingRepo,
+		eventRepo,
+		userRepo,
+	)
 
 	// ---------------- Handlers ----------------
 	eventHandler := workerHandlers.NewWorkerEventHandler(eventService)
@@ -33,14 +37,17 @@ func WorkerRoutes(r *gin.Engine) {
 		middleware.WorkerMiddleware(), // sub_captain, main_boy, junior_boy
 	)
 
-	// HOME
+	// ================= HOME =================
 	workerGroup.GET("/events", eventHandler.ListEvents)
 	workerGroup.GET("/events/:id", eventHandler.GetEvent)
 
-	// BOOK EVENT
+	// ================= BOOK EVENT =================
 	workerGroup.POST("/events/:event_id/book", bookingHandler.BookEvent)
-	workerGroup.GET("/bookings", bookingHandler.ListMyBookings)
 
-	// COMPLETED PAGE
+	// ================= BOOKINGS =================
+	workerGroup.GET("/bookings", bookingHandler.ListMyBookings)
+	workerGroup.GET("/bookings/:booking_id", bookingHandler.GetBookingDetails)
+
+	// ================= COMPLETED =================
 	workerGroup.GET("/bookings/completed", bookingHandler.ListCompletedBookings)
 }
