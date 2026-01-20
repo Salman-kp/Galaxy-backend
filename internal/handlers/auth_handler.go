@@ -21,7 +21,7 @@ func NewAuthHandler(u interfaces.UserRepository, r interfaces.RefreshTokenReposi
 	return &AuthHandler{UserRepo: u, RefreshRepo: r, JWTService: j}
 }
 
-func (h *AuthHandler) Login(c *gin.Context) {
+func (h *AuthHandler) WorkerLogin(c *gin.Context) {
 	var req validations.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "phone and password are required"})
@@ -36,6 +36,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
+	if user.Role == models.RoleAdmin {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid worker credentials"})
+		return
+	}
 	if user.Status == models.StatusBlocked {
 		c.JSON(http.StatusForbidden, gin.H{"error": "user is blocked"})
 		return
@@ -44,7 +48,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
-	accessToken, err := h.JWTService.GenerateAccessToken(user.ID, user.Role)
+	accessToken, err := h.JWTService.GenerateAccessToken(user.ID, user.Role,nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access token"})
 		return
@@ -71,6 +75,73 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"id":   user.ID,
 			"name": user.Name,
 			"role": user.Role,
+		},
+	})
+}
+
+func (h *AuthHandler) AdminLogin(c *gin.Context) {
+	var req validations.LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "phone and password are required"})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := h.UserRepo.FindByPhone(req.Phone)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	if user.Role != models.RoleAdmin {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid admin credentials"})
+		return
+	}
+	if user.Status == models.StatusBlocked {
+		c.JSON(http.StatusForbidden, gin.H{"error": "user is blocked"})
+		return
+	}
+	if !utils.CheckPasswordHash(req.Password, user.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	
+    permissions := []string{}
+    if user.Role == models.RoleAdmin && user.AdminRole != nil {
+        for _, p := range user.AdminRole.Permissions {
+            permissions = append(permissions, p.Slug)
+        }
+    }
+
+	accessToken, err := h.JWTService.GenerateAccessToken(user.ID, user.Role,permissions)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access token"})
+		return
+	}
+	utils.SetAccessToken(c, accessToken)
+	rawRefresh, hashedRefresh, expiresAt, err := h.JWTService.GenerateRefreshToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate refresh token"})
+		return
+	}
+	_ = h.RefreshRepo.DeleteByUserID(user.ID)
+	err = h.RefreshRepo.Save(&models.RefreshToken{
+		UserID:      user.ID,
+		TokenHashed: hashedRefresh,
+		ExpiresAt:   expiresAt,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not save refresh token"})
+		return
+	}
+	utils.SetRefreshToken(c, rawRefresh)
+	c.JSON(http.StatusOK, gin.H{
+		"user": gin.H{
+			"id":   user.ID,
+			"name": user.Name,
+			"role": user.Role,
+			"permissions": permissions,
 		},
 	})
 }
@@ -103,12 +174,20 @@ func (h *AuthHandler) Profile(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
-
+    permissions := []string{}
+    if user.Role == models.RoleAdmin && user.AdminRoleID != nil {
+        if user.AdminRole != nil {
+           for _, p := range user.AdminRole.Permissions {
+            permissions = append(permissions, p.Slug)
+           }
+        }
+    }
 	c.JSON(http.StatusOK, gin.H{
 		"id":              user.ID,
 		"name":            user.Name,
 		"phone":           user.Phone,
 		"role":            user.Role,
+		"permissions":    permissions,
 		"branch":          user.Branch,
 		"starting_point":  user.StartingPoint,
 		"blood_group":     user.BloodGroup,

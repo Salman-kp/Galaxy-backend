@@ -34,6 +34,8 @@ type User struct {
 	CompletedWork uint           `gorm:"default:0" json:"completed_work"`
 	CurrentWage   int64          `gorm:"default:0" json:"current_wage"`
 	Status        string         `gorm:"size:30;default:'active'" json:"status"`
+	AdminRoleID   *uint          `json:"admin_role_id"`
+    AdminRole     *AdminRole     `gorm:"foreignKey:AdminRoleID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL" json:"admin_role"`
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`

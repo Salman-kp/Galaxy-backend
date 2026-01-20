@@ -4,7 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"event-management-backend/internal/config"
 	"event-management-backend/internal/domain/interfaces"
 	"event-management-backend/internal/domain/models"
 	"event-management-backend/internal/utils"
@@ -37,8 +36,15 @@ func (s *AdminUserService) CreateUser(input *models.User) error {
 		return err
 	}
 
-	if rw, err := s.roleWageRepo.FindByRole(input.Role); err == nil {
-		input.CurrentWage = rw.Wage
+    if input.Role == models.RoleAdmin {
+		input.CurrentWage = 0
+	} else {
+		input.AdminRoleID = nil
+		if rw, err := s.roleWageRepo.FindByRole(input.Role); err == nil {
+			input.CurrentWage = rw.Wage
+		} else {
+			input.CurrentWage = 0
+		}
 	}
 
 	hashed, err := utils.HashPassword(input.Password)
@@ -85,18 +91,43 @@ func (s *AdminUserService) UpdateUser(input *models.User) error {
 		changed = true
 	}
 
-	if input.Role != "" && input.Role != old.Role {
+    if input.Role != "" && input.Role != old.Role {
 		if !models.ValidateRole(input.Role) {
 			return errors.New("invalid role")
 		}
 		old.Role = input.Role
-
-		// 🔧 UPDATED: fetch latest wage on role change
-		if rw, err := s.roleWageRepo.FindByRole(input.Role); err == nil {
-			old.CurrentWage = rw.Wage
-		}
-
 		changed = true
+
+		if old.Role == models.RoleAdmin {
+			old.CurrentWage = 0
+		} else {
+			old.AdminRoleID = nil
+			if rw, err := s.roleWageRepo.FindByRole(input.Role); err == nil {
+				old.CurrentWage = rw.Wage
+			} else {
+				old.CurrentWage = 0
+			}
+		}
+	}
+	if old.Role == models.RoleAdmin {
+		if old.CurrentWage != 0 {
+			old.CurrentWage = 0
+			changed = true
+		}
+		if input.AdminRoleID != nil {
+			if old.AdminRoleID == nil || *input.AdminRoleID != *old.AdminRoleID {
+				old.AdminRoleID = input.AdminRoleID
+				changed = true
+			}
+		} else if old.AdminRoleID != nil {
+			old.AdminRoleID = nil
+			changed = true
+		}
+	} else {
+		if old.AdminRoleID != nil {
+			old.AdminRoleID = nil
+			changed = true
+		}
 	}
 
 	if input.Branch != "" && input.Branch != old.Branch {
@@ -206,23 +237,9 @@ func (s *AdminUserService) ListUsersByRole(role string) ([]models.User, error) {
 	if !models.ValidateRole(role) {
 		return []models.User{}, errors.New("invalid role")
 	}
-
-	var users []models.User
-	err := config.DB.
-		Where("role = ? AND deleted_at IS NULL", role).
-		Order("created_at DESC").
-		Find(&users).Error
-
-	return users, err
+	return s.repo.ListByRole(role)
 }
 
-// ---------------- SEARCH BY PHONE ----------------
 func (s *AdminUserService) SearchUsersByPhone(phone string) ([]models.User, error) {
-	var users []models.User
-	err := config.DB.
-		Where("phone ILIKE ? AND deleted_at IS NULL", "%"+phone+"%").
-		Order("created_at DESC").
-		Find(&users).Error
-
-	return users, err
+	return s.repo.SearchByPhone(phone)
 }

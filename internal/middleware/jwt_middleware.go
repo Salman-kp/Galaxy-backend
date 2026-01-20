@@ -28,6 +28,7 @@ func JWTAuthMiddleware(jwtService *auth.JWTService, refreshRepo interfaces.Refre
         if err == nil {
             c.Set("user_id", claims.UserID)
             c.Set("role", claims.Role)
+            c.Set("permissions", claims.Permissions)
             c.Next()
             return
         }
@@ -36,6 +37,13 @@ func JWTAuthMiddleware(jwtService *auth.JWTService, refreshRepo interfaces.Refre
             utils.ClearAccessToken(c)
             utils.ClearRefreshToken(c)
             c.JSON(http.StatusUnauthorized, gin.H{"error": "login required"})
+            c.Abort()
+            return
+        }
+        if accessToken == "" {
+            utils.ClearAccessToken(c)
+            utils.ClearRefreshToken(c)
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "access token missing, please login"})
             c.Abort()
             return
         }
@@ -61,7 +69,11 @@ func JWTAuthMiddleware(jwtService *auth.JWTService, refreshRepo interfaces.Refre
             c.Abort()
             return
         }
-        newAccess, err := jwtService.GenerateAccessToken(expiredClaims.UserID, expiredClaims.Role)
+        perms := expiredClaims.Permissions
+        if perms == nil {
+            perms = []string{}
+        }
+        newAccess, err := jwtService.GenerateAccessToken(expiredClaims.UserID, expiredClaims.Role,perms)
         if err != nil {
             c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate access token"})
             c.Abort()
@@ -70,6 +82,7 @@ func JWTAuthMiddleware(jwtService *auth.JWTService, refreshRepo interfaces.Refre
         utils.SetAccessToken(c, newAccess)
         c.Set("user_id", expiredClaims.UserID)
         c.Set("role", expiredClaims.Role)
+        c.Set("permissions", perms)
         c.Next()
     }
 }

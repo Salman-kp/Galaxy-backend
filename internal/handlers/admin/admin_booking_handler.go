@@ -100,14 +100,14 @@ func (h *AdminBookingHandler) UpdateAttendance(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid booking id"})
 		return
 	}
-
+    
 	var req validations.UpdateAttendanceRequest
+		req.BookingID = bookingID
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
-	req.BookingID = bookingID
 
 	if err := req.Validate(); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

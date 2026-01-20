@@ -23,23 +23,24 @@ type CreateUserRequest struct {
 	StartingPoint string `json:"starting_point"`
 	BloodGroup    string `json:"blood_group"`
 	DOB           string `json:"dob"` // YYYY-MM-DD
+	AdminRoleID *uint `json:"admin_role_id"`
 }
 
 func (r *CreateUserRequest) Validate() error {
-	if !nameRegex.MatchString(r.Name) {
-		return errors.New("invalid name")
+    if r.Name == "" || !nameRegex.MatchString(r.Name) {
+        return errors.New("name is required and must be valid")
+    }
+    if r.Phone == "" || !phoneRegex.MatchString(r.Phone) {
+        return errors.New("10-digit phone number is required")
+    }
+    if r.Role == "" || !models.ValidateRole(r.Role) {
+        return errors.New("a valid role is required")
+    }
+    if r.Role == models.RoleAdmin && r.AdminRoleID == nil {
+		return errors.New("admin role ID is required for administrative accounts")
 	}
-
-	if !phoneRegex.MatchString(r.Phone) {
-		return errors.New("invalid phone")
-	}
-
 	if len(r.Password) < 4 {
 		return errors.New("password must be at least 4 characters")
-	}
-
-	if !models.ValidateRole(r.Role) {
-		return errors.New("invalid role")
 	}
 	return nil
 }
@@ -56,6 +57,7 @@ type UpdateUserRequest struct {
 	BloodGroup    string `json:"blood_group"`
 	DOB           string `json:"dob"` // YYYY-MM-DD
 	Status        string `json:"status"`
+	AdminRoleID *uint `json:"admin_role_id"`
 }
 
 func (r *UpdateUserRequest) Validate() error {
@@ -70,7 +72,9 @@ func (r *UpdateUserRequest) Validate() error {
 	if r.Role != "" && !models.ValidateRole(r.Role) {
 		return errors.New("invalid role")
 	}
-
+    if r.Role == models.RoleAdmin && r.AdminRoleID == nil {
+		return errors.New("admin role ID is required when setting role to admin")
+	}
 	if r.Status != "" && !models.ValidateStatus(r.Status) {
 		return errors.New("invalid status")
 	}

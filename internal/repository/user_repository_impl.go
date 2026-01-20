@@ -21,6 +21,7 @@ func (r *userRepository) Create(user *models.User) error {
 func (r *userRepository) FindByID(id uint) (*models.User, error) {
 	var user models.User
 	err := config.DB.
+	    Preload("AdminRole.Permissions").
 		Where("id = ? AND deleted_at IS NULL", id).
 		First(&user).Error
 	return &user, err
@@ -29,6 +30,7 @@ func (r *userRepository) FindByID(id uint) (*models.User, error) {
 func (r *userRepository) FindByPhone(phone string) (*models.User, error) {
 	var user models.User
 	err := config.DB.
+	    Preload("AdminRole.Permissions").
 		Where("phone = ? AND deleted_at IS NULL", phone).
 		First(&user).Error
 	return &user, err
@@ -36,9 +38,9 @@ func (r *userRepository) FindByPhone(phone string) (*models.User, error) {
 
 func (r *userRepository) ListAll(role string, status string) ([]models.User, error) {
 	var users []models.User
-	query := config.DB.
-		Model(&models.User{}).
-		Where("deleted_at IS NULL")
+	query := config.DB.Model(&models.User{}).
+             Preload("AdminRole"). 
+             Where("deleted_at IS NULL") 
 
 	if role != "" {
 		query = query.Where("role = ?", role)
@@ -49,6 +51,24 @@ func (r *userRepository) ListAll(role string, status string) ([]models.User, err
 
 	err := query.Order("created_at ASC").Find(&users).Error
 	return users, err
+}
+func (r *userRepository) ListByRole(role string) ([]models.User, error) {
+    var users []models.User
+    err := config.DB.
+        Preload("AdminRole"). 
+        Where("role = ? AND deleted_at IS NULL", role).
+        Order("created_at DESC").
+        Find(&users).Error
+    return users, err
+}
+func (r *userRepository) SearchByPhone(phone string) ([]models.User, error) {
+    var users []models.User
+    err := config.DB.
+        Preload("AdminRole"). 
+        Where("phone ILIKE ? AND deleted_at IS NULL", "%"+phone+"%").
+        Order("created_at DESC").
+        Find(&users).Error
+    return users, err
 }
 
 func (r *userRepository) FindAll() ([]models.User, error) {

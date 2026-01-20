@@ -12,5 +12,7 @@ func Migrate() error {
 		&models.RefreshToken{},
 		&models.Event{},
 		&models.Booking{},
+		&models.AdminRole{},
+		&models.Permission{},
 	)
 }

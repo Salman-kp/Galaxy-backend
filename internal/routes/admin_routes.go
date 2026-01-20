@@ -10,13 +10,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func AdminRoutes(r *gin.Engine) {
+func AdminRoutes(r *gin.RouterGroup) {
 	// ---------------- Repositories ----------------
 	userRepo := repository.NewUserRepository()
 	wageRepo := repository.NewRoleWageRepository()
 	refreshRepo := repository.NewRefreshTokenRepository()
 	eventRepo := repository.NewEventRepository()
 	bookingRepo := repository.NewBookingRepository()
+	roleRepo := repository.NewRoleRepository()
+	permRepo := repository.NewPermissionRepository()
 
 	// ---------------- Services ----------------
 	jwtService := auth.NewJWTService()
@@ -24,9 +26,10 @@ func AdminRoutes(r *gin.Engine) {
 	userService := admin.NewAdminUserService(userRepo, wageRepo)
 	eventService := admin.NewAdminEventService(eventRepo)
 	bookingService := admin.NewAdminBookingService(bookingRepo, eventRepo)
-	wageService := admin.NewWageService(bookingRepo,eventRepo)
+	wageService := admin.NewWageService(bookingRepo, eventRepo)
 	dashboardService := admin.NewDashboardService()
-	roleWageService := admin.NewRoleWageService(wageRepo,userRepo)
+	roleWageService := admin.NewRoleWageService(wageRepo, userRepo)
+	roleService := admin.NewRoleService(roleRepo, permRepo)
 
 	// ---------------- Handlers ----------------
 	userHandler := adminHandlers.NewAdminUserHandler(userService)
@@ -36,6 +39,7 @@ func AdminRoutes(r *gin.Engine) {
 	dashboardHandler := adminHandlers.NewAdminDashboardHandler(dashboardService)
 	profileHandler := adminHandlers.NewAdminProfileHandler(userService)
 	roleWageHandler := adminHandlers.NewRoleWageHandler(roleWageService)
+	roleHandler := adminHandlers.NewAdminRoleHandler(roleService)
 
 	// ---------------- Routes ----------------
 	adminGroup := r.Group("/admin")
@@ -44,49 +48,73 @@ func AdminRoutes(r *gin.Engine) {
 		middleware.AdminMiddleware(),
 	)
 
-	// USER ROUTES
-	adminGroup.POST("/users", userHandler.CreateUser)
-	adminGroup.GET("/users", userHandler.ListUsers)
-	adminGroup.GET("/users/role/:role", userHandler.ListUsersByRole)
-    adminGroup.GET("/users/search", userHandler.SearchUsersByPhone)
-	adminGroup.GET("/users/:id", userHandler.GetUser)
-	adminGroup.PUT("/users/:id", userHandler.UpdateUser)
-	adminGroup.PUT("/users/block/:id", userHandler.BlockUser)
-	adminGroup.PUT("/users/unblock/:id", userHandler.UnblockUser)
-	adminGroup.DELETE("/users/:id", userHandler.DeleteUser)
-	adminGroup.PUT("/users/reset-password/:id", userHandler.ResetPassword)
+    // --- USER MANAGEMENT ---
+	users := adminGroup.Group("/users")
+	{
+		users.POST("/",middleware.HasPermission("user:create"), userHandler.CreateUser)
+		users.GET("/",middleware.HasPermission("user:view"), userHandler.ListUsers)
+		users.GET("/role/:role",middleware.HasPermission("user:view"), userHandler.ListUsersByRole)
+		users.GET("/search",middleware.HasPermission("user:view"), userHandler.SearchUsersByPhone)
+		users.GET("/:id",middleware.HasPermission("user:view"), userHandler.GetUser)
+		users.PUT("/:id",middleware.HasPermission("user:edit"), userHandler.UpdateUser)
+		users.PUT("/block/:id", middleware.HasPermission("user:status"),userHandler.BlockUser)
+		users.PUT("/unblock/:id",middleware.HasPermission("user:status"), userHandler.UnblockUser)
+		users.DELETE("/:id",middleware.HasPermission("user:delete"), userHandler.DeleteUser)
+		users.PUT("/reset-password/:id",middleware.HasPermission("user:password"), userHandler.ResetPassword)
+	}
 
-	// EVENT ROUTES
-	adminGroup.POST("/events", eventHandler.CreateEvent)
-	adminGroup.GET("/events", eventHandler.ListEvents)
-	adminGroup.GET("/events/:id", eventHandler.GetEvent)
-	adminGroup.PUT("/events/:id", eventHandler.UpdateEvent)
-	adminGroup.DELETE("/events/:id", eventHandler.DeleteEvent)
+    // --- EVENT MANAGEMENT ---
+	events := adminGroup.Group("/events")
+	{
+        events.GET("/", middleware.HasPermission("event:view"), eventHandler.ListEvents)
+        events.POST("/", middleware.HasPermission("event:create"), eventHandler.CreateEvent)
+        events.PUT("/:id", middleware.HasPermission("event:edit"), eventHandler.UpdateEvent)
+        events.DELETE("/:id", middleware.HasPermission("event:delete"), eventHandler.DeleteEvent)
+        
+        // Operational access LIFE CYCLE
+        events.PUT("/start/:id", middleware.HasPermission("event:operate"), eventHandler.StartEvent)
+        events.PUT("/complete/:id", middleware.HasPermission("event:operate"), eventHandler.CompleteEvent)
+		events.PUT("/cancel/:id", middleware.HasPermission("event:operate"), eventHandler.CancelEvent)
+	}
 
-	// Event lifecycle control
-	adminGroup.PUT("/events/start/:id", eventHandler.StartEvent)
-	adminGroup.PUT("/events/complete/:id", eventHandler.CompleteEvent)
-	adminGroup.PUT("/events/cancel/:id", eventHandler.CancelEvent)
+   // --- BOOKINGS & WAGES ---
+	adminGroup.GET("/events/bookings/:event_id", middleware.HasPermission("event:view"), bookingHandler.ListEventBookings)
+	adminGroup.DELETE("/events/bookings/:event_id/:booking_id", middleware.HasPermission("event:operate"), bookingHandler.RemoveUserFromEvent)
+	adminGroup.PUT("/bookings/:booking_id/attendance", middleware.HasPermission("event:operate"), bookingHandler.UpdateAttendance)
+	adminGroup.PUT("/bookings/:booking_id/wage", middleware.HasPermission("wage:edit"), wageHandler.OverrideWage)
+	adminGroup.GET("/events/bookings/:event_id/status/:status",middleware.HasPermission("event:view"), bookingHandler.ListEventBookingsByStatus)
+	adminGroup.GET("/events/bookings/:event_id/search",middleware.HasPermission("event:view"), bookingHandler.SearchEventBookingsByName)
+	adminGroup.GET("/reports/events/:event_id/wages/summary", middleware.HasPermission("wage:view"), bookingHandler.GetEventWageSummary)
+	
+	
+    // --- DASHBOARD & PROFILE ---
+	adminGroup.GET("/dashboard/summary", middleware.HasPermission("dashboard:view"), dashboardHandler.GetSummary)
+	adminGroup.GET("/dashboard/charts/monthly", middleware.HasPermission("dashboard:view"), dashboardHandler.GetMonthlyChart)
+	adminGroup.GET("/dashboard/charts/daily", middleware.HasPermission("dashboard:view"), dashboardHandler.GetDailyChart)
+	adminGroup.GET("/dashboard/today", middleware.HasPermission("dashboard:view"), dashboardHandler.GetTodayEvents)
+	adminGroup.PUT("/profile", middleware.HasPermission("profile:edit"), profileHandler.UpdateProfile)
 
-	// BOOKING ROUTES (GIN-SAFE)
-	adminGroup.GET("/events/bookings/:event_id", bookingHandler.ListEventBookings)
-	adminGroup.DELETE("/events/bookings/:event_id/:booking_id", bookingHandler.RemoveUserFromEvent)
-	adminGroup.PUT("/bookings/:booking_id/attendance", bookingHandler.UpdateAttendance)
-	adminGroup.PUT("/bookings/:booking_id/wage", wageHandler.OverrideWage)
-    adminGroup.GET("/events/bookings/:event_id/status/:status",bookingHandler.ListEventBookingsByStatus)
-    adminGroup.GET("/events/bookings/:event_id/search",bookingHandler.SearchEventBookingsByName)
-    adminGroup.GET("/reports/events/:event_id/wages/summary",bookingHandler.GetEventWageSummary) 
+    // --- ROLE WAGES ---
+	adminGroup.GET("/wages", middleware.HasPermission("managewages:view"), roleWageHandler.List)
+	adminGroup.PUT("/wages/:role", middleware.HasPermission("managewages:view"), roleWageHandler.Update)
 
-	// DASHBOARD ROUTES
-	adminGroup.GET("/dashboard/summary", dashboardHandler.GetSummary)
-	adminGroup.GET("/dashboard/charts/monthly", dashboardHandler.GetMonthlyChart)
-	adminGroup.GET("/dashboard/charts/daily", dashboardHandler.GetDailyChart)
-	adminGroup.GET("/dashboard/today", dashboardHandler.GetTodayEvents)
+    // --- RBAC MANAGEMENT ---
+    rbac := adminGroup.Group("/rbac")
+    rbac.Use(middleware.HasPermission("rbac:view"))
+    {
+    rbac.GET("/admins/:role", userHandler.ListUsersByRole) 
 
-	// PROFILE
-	adminGroup.PUT("/profile", profileHandler.UpdateProfile)
+	rbac.GET("/dropdown/roles", roleHandler.ListRoles)
+    rbac.POST("/users/invite", userHandler.CreateUser)
 
-	// ROLE WAGE ROUTES
-	adminGroup.GET("/wages", roleWageHandler.List)
-	adminGroup.PUT("/wages/:role", roleWageHandler.Update)
+	rbac.GET("/permissions", roleHandler.ListPermissions)
+    rbac.GET("/roles", roleHandler.ListRoles)
+    rbac.GET("/roles/:id", roleHandler.GetRoleDetails)
+    rbac.POST("/roles", roleHandler.CreateRole)
+    rbac.PUT("/roles/:id", roleHandler.UpdateRole)
+    rbac.DELETE("/roles/:id", roleHandler.DeleteRole)
+
+    rbac.PUT("/admins/clearance/:id", userHandler.UpdateUser)
+    rbac.DELETE("/admins/:id", userHandler.DeleteUser)
+  }
 }

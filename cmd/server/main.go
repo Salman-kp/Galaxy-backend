@@ -23,20 +23,25 @@ func main() {
 	}
 
 	// Seeders
-	seeders.SeedAdmin(config.DB)
+	seeders.SeedRBAC(config.DB)
 	seeders.SeedRoleWages(config.DB)
 
 	// Router
 	router := gin.Default()
+	router.Static("/uploads", "./uploads/users")
+	api := router.Group("/api")
 
+	// Auth routes
 	routes.AuthRoutes(
-		router,
+		api,
 		repository.NewUserRepository(),
 		repository.NewRefreshTokenRepository(),
 	)
-	routes.AdminRoutes(router)
-	routes.CaptainRoutes(router)
-	routes.WorkerRoutes(router)
+
+	// Protected routes
+	routes.AdminRoutes(api)
+	routes.CaptainRoutes(api)
+	routes.WorkerRoutes(api)
 
 	// Server
 	port := os.Getenv("PORT")

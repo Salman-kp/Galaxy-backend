@@ -72,6 +72,11 @@ func (h *AdminUserHandler) CreateUser(c *gin.Context) {
 		BloodGroup:    req.BloodGroup,
 		Photo:         photoName,
 	}
+    if req.Role == models.RoleAdmin {
+        user.AdminRoleID = req.AdminRoleID
+    } else {
+        user.AdminRoleID = nil 
+    }
 
 	if req.DOB != "" {
 		if parsed, err := time.Parse("2006-01-02", req.DOB); err == nil {
@@ -168,6 +173,12 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
 		BloodGroup:    req.BloodGroup,
 		Status:        req.Status,
 	}
+
+	if req.Role == models.RoleAdmin {
+        user.AdminRoleID = req.AdminRoleID
+    } else {
+        user.AdminRoleID = nil 
+    }
 
 	if req.DOB != "" {
 		if parsed, err := time.Parse("2006-01-02", req.DOB); err == nil {

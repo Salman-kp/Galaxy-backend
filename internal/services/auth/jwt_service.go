@@ -31,27 +31,27 @@ const (
 type Claims struct {
 	UserID uint   `json:"user_id"`
 	Role   string `json:"role"`
+	Permissions []string `json:"permissions"`
 	jwt.RegisteredClaims
 }
 
-func (j *JWTService) GenerateAccessToken(userID uint, role string) (string, error) {
-	if j.accessSecret == "" {
-		return "", errors.New("jwt access secret missing")
-	}
+func (j *JWTService) GenerateAccessToken(userID uint, role string, permissions []string) (string, error) {
+    if j.accessSecret == "" {
+        return "", errors.New("jwt access secret missing")
+    }
 
-	now := time.Now().UTC()
+    claims := Claims{
+        UserID:      userID,
+        Role:        role,
+        Permissions: permissions,
+        RegisteredClaims: jwt.RegisteredClaims{
+            ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(AccessTTL)),
+            IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+        },
+    }
 
-	claims := Claims{
-		UserID: userID,
-		Role:   role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(AccessTTL)),
-			IssuedAt:  jwt.NewNumericDate(now),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(j.accessSecret))
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+    return token.SignedString([]byte(j.accessSecret))
 }
 
 func (j *JWTService) GenerateRefreshToken() (string, string, time.Time, error) {

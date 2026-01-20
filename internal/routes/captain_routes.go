@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func CaptainRoutes(r *gin.Engine) {
+func CaptainRoutes(r *gin.RouterGroup) {
 	// ---------------- Repositories ----------------
 	refreshRepo := repository.NewRefreshTokenRepository()
 	eventRepo := repository.NewEventRepository()

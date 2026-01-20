@@ -39,10 +39,10 @@ func (s *DashboardService) GetSummary() (*DashboardSummary, error) {
 	db := config.DB
 
 	if err := db.Model(&models.Event{}).
-		Where("deleted_at IS NULL").
-		Count(&summary.TotalEvents).Error; err != nil {
-		return nil, err
-	}
+	Where("deleted_at IS NULL AND status != ?", models.EventStatusCancelled).
+	Count(&summary.TotalEvents).Error; err != nil {
+	return nil, err
+   }
 
 	if err := db.Model(&models.Event{}).
 		Where("status = ? AND deleted_at IS NULL", models.EventStatusCompleted).
