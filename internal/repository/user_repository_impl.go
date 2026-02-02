@@ -91,6 +91,9 @@ func (r *userRepository) Count() (int64, error) {
 func (r *userRepository) Update(user *models.User) error {
 	return config.DB.Save(user).Error
 }
+func (r *userRepository) UpdateRole(user *models.User) error {
+ return config.DB.Model(user).Select("Role", "AdminRoleID", "CurrentWage", "UpdatedAt").Updates(user).Error
+}
 
 func (r *userRepository) UpdateFields(id uint, updates map[string]interface{}) error {
 	return config.DB.

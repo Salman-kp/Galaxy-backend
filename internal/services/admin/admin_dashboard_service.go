@@ -1,8 +1,6 @@
 package admin
 
 import (
-	"time"
-
 	"event-management-backend/internal/config"
 	"event-management-backend/internal/domain/models"
 )
@@ -118,26 +116,4 @@ func (s *DashboardService) GetDailyEventChart(year int, month int) ([]DailyEvent
 		Scan(&result).Error
 
 	return result, err
-}
-
-//
-// ---------------- TODAY EVENTS ----------------
-//
-func (s *DashboardService) GetTodayEvents() ([]models.Event, error) {
-	var events []models.Event
-
-	start := time.Now().Truncate(24 * time.Hour)
-	end := start.Add(24 * time.Hour)
-
-	err := config.DB.
-		Model(&models.Event{}).
-		Where(`
-			date >= ? AND date < ?
-			AND status != ?
-			AND deleted_at IS NULL
-		`, start, end, models.EventStatusCancelled).
-		Order("reporting_time ASC").
-		Find(&events).Error
-
-	return events, err
 }

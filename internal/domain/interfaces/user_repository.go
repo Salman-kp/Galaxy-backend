@@ -14,6 +14,7 @@ type UserRepository interface {
     SearchByPhone(phone string) ([]models.User, error)
 
 	Update(user *models.User) error
+	UpdateRole(user *models.User) error
 	UpdateFields(id uint, updates map[string]interface{}) error
 	UpdateWageByRole(role string, wage int64) error
 

@@ -287,6 +287,37 @@ func (h *AdminUserHandler) SearchUsersByPhone(c *gin.Context) {
 	c.JSON(http.StatusOK, data)
 }
 
+func (h *AdminUserHandler) UpdateUserRole(c *gin.Context) {
+	id := parseID(c.Param("id"))
+	if id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	var req validations.UpdateUserClearanceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := h.service.UpdateUserRole(id, req.Role, req.AdminRoleID)
+	if err != nil {
+		if err.Error() == "no changes detected in clearance" {
+			c.JSON(http.StatusOK, gin.H{"message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "user role and clearance updated successfully"})
+}
+
 func parseID(s string) uint {
 	id64, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {

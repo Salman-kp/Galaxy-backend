@@ -20,93 +20,38 @@ type AuthHandler struct {
 func NewAuthHandler(u interfaces.UserRepository, r interfaces.RefreshTokenRepository, j *auth.JWTService) *AuthHandler {
 	return &AuthHandler{UserRepo: u, RefreshRepo: r, JWTService: j}
 }
+func (h *AuthHandler) Login(c *gin.Context) {
+    var req validations.LoginRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "phone and password are required"})
+        return
+    }
 
-func (h *AuthHandler) WorkerLogin(c *gin.Context) {
-	var req validations.LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "phone and password are required"})
-		return
-	}
-	if err := req.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	user, err := h.UserRepo.FindByPhone(req.Phone)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-	if user.Role == models.RoleAdmin {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid worker credentials"})
-		return
-	}
-	if user.Status == models.StatusBlocked {
-		c.JSON(http.StatusForbidden, gin.H{"error": "user is blocked"})
-		return
-	}
-	if !utils.CheckPasswordHash(req.Password, user.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-	accessToken, err := h.JWTService.GenerateAccessToken(user.ID, user.Role,nil)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access token"})
-		return
-	}
-	utils.SetAccessToken(c, accessToken)
-	rawRefresh, hashedRefresh, expiresAt, err := h.JWTService.GenerateRefreshToken()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate refresh token"})
-		return
-	}
-	_ = h.RefreshRepo.DeleteByUserID(user.ID)
-	err = h.RefreshRepo.Save(&models.RefreshToken{
-		UserID:      user.ID,
-		TokenHashed: hashedRefresh,
-		ExpiresAt:   expiresAt,
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not save refresh token"})
-		return
-	}
-	utils.SetRefreshToken(c, rawRefresh)
-	c.JSON(http.StatusOK, gin.H{
-		"user": gin.H{
-			"id":   user.ID,
-			"name": user.Name,
-			"role": user.Role,
-		},
-	})
-}
+    if err := req.Validate(); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-func (h *AuthHandler) AdminLogin(c *gin.Context) {
-	var req validations.LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "phone and password are required"})
-		return
-	}
-	if err := req.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	user, err := h.UserRepo.FindByPhone(req.Phone)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-	if user.Role != models.RoleAdmin {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid admin credentials"})
-		return
-	}
-	if user.Status == models.StatusBlocked {
-		c.JSON(http.StatusForbidden, gin.H{"error": "user is blocked"})
-		return
-	}
-	if !utils.CheckPasswordHash(req.Password, user.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-	
+    // 1. Fetch user by phone
+    user, err := h.UserRepo.FindByPhone(req.Phone)
+    if err != nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+        return
+    }
+
+    // 2. Security Check: Account Status
+    if user.Status == models.StatusBlocked {
+        c.JSON(http.StatusForbidden, gin.H{"error": "your account is blocked. please contact admin."})
+        return
+    }
+
+    // 3. Verify Password
+    if !utils.CheckPasswordHash(req.Password, user.Password) {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+        return
+    }
+
+    // 4. Handle RBAC: Collect permissions only if the user is an admin
     permissions := []string{}
     if user.Role == models.RoleAdmin && user.AdminRole != nil {
         for _, p := range user.AdminRole.Permissions {
@@ -114,37 +59,169 @@ func (h *AuthHandler) AdminLogin(c *gin.Context) {
         }
     }
 
-	accessToken, err := h.JWTService.GenerateAccessToken(user.ID, user.Role,permissions)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access token"})
-		return
-	}
-	utils.SetAccessToken(c, accessToken)
-	rawRefresh, hashedRefresh, expiresAt, err := h.JWTService.GenerateRefreshToken()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate refresh token"})
-		return
-	}
-	_ = h.RefreshRepo.DeleteByUserID(user.ID)
-	err = h.RefreshRepo.Save(&models.RefreshToken{
-		UserID:      user.ID,
-		TokenHashed: hashedRefresh,
-		ExpiresAt:   expiresAt,
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not save refresh token"})
-		return
-	}
-	utils.SetRefreshToken(c, rawRefresh)
-	c.JSON(http.StatusOK, gin.H{
-		"user": gin.H{
-			"id":   user.ID,
-			"name": user.Name,
-			"role": user.Role,
-			"permissions": permissions,
-		},
-	})
+    // 5. Generate Tokens
+    // Passing permissions to GenerateAccessToken ensures they are embedded in the JWT claims
+    accessToken, err := h.JWTService.GenerateAccessToken(user.ID, user.Role, permissions)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access token"})
+        return
+    }
+    
+    rawRefresh, hashedRefresh, expiresAt, err := h.JWTService.GenerateRefreshToken()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate refresh token"})
+        return
+    }
+
+    // 6. Session Persistence
+    _ = h.RefreshRepo.DeleteByUserID(user.ID)
+    err = h.RefreshRepo.Save(&models.RefreshToken{
+        UserID:      user.ID,
+        TokenHashed: hashedRefresh,
+        ExpiresAt:   expiresAt,
+    })
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "could not save session"})
+        return
+    }
+
+    // 7. Set HTTP-Only Cookies for Security
+    utils.SetAccessToken(c, accessToken)
+    utils.SetRefreshToken(c, rawRefresh)
+
+    // 8. Return JSON response for the Frontend
+    c.JSON(http.StatusOK, gin.H{
+        "user": gin.H{
+            "id":          user.ID,
+            "name":        user.Name,
+            "role":        user.Role,
+            "permissions": permissions, 
+        },
+    })
 }
+
+// func (h *AuthHandler) WorkerLogin(c *gin.Context) {
+// 	var req validations.LoginRequest
+// 	if err := c.ShouldBindJSON(&req); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "phone and password are required"})
+// 		return
+// 	}
+// 	if err := req.Validate(); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
+// 	user, err := h.UserRepo.FindByPhone(req.Phone)
+// 	if err != nil {
+// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+// 		return
+// 	}
+// 	if user.Role == models.RoleAdmin {
+// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid worker credentials"})
+// 		return
+// 	}
+// 	if user.Status == models.StatusBlocked {
+// 		c.JSON(http.StatusForbidden, gin.H{"error": "user is blocked"})
+// 		return
+// 	}
+// 	if !utils.CheckPasswordHash(req.Password, user.Password) {
+// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+// 		return
+// 	}
+// 	accessToken, err := h.JWTService.GenerateAccessToken(user.ID, user.Role,nil)
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access token"})
+// 		return
+// 	}
+// 	utils.SetAccessToken(c, accessToken)
+// 	rawRefresh, hashedRefresh, expiresAt, err := h.JWTService.GenerateRefreshToken()
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate refresh token"})
+// 		return
+// 	}
+// 	_ = h.RefreshRepo.DeleteByUserID(user.ID)
+// 	err = h.RefreshRepo.Save(&models.RefreshToken{
+// 		UserID:      user.ID,
+// 		TokenHashed: hashedRefresh,
+// 		ExpiresAt:   expiresAt,
+// 	})
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not save refresh token"})
+// 		return
+// 	}
+// 	utils.SetRefreshToken(c, rawRefresh)
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"user": gin.H{
+// 			"id":   user.ID,
+// 			"name": user.Name,
+// 			"role": user.Role,
+// 		},
+// 	})
+// }
+
+// func (h *AuthHandler) AdminLogin(c *gin.Context) {
+// 	var req validations.LoginRequest
+// 	if err := c.ShouldBindJSON(&req); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "phone and password are required"})
+// 		return
+// 	}
+// 	if err := req.Validate(); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
+// 	user, err := h.UserRepo.FindByPhone(req.Phone)
+// 	if err != nil {
+// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+// 		return
+// 	}
+// 	if user.Role != models.RoleAdmin {
+// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid admin credentials"})
+// 		return
+// 	}
+// 	if user.Status == models.StatusBlocked {
+// 		c.JSON(http.StatusForbidden, gin.H{"error": "user is blocked"})
+// 		return
+// 	}
+// 	if !utils.CheckPasswordHash(req.Password, user.Password) {
+// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+// 		return
+// 	}
+//     permissions := []string{}
+//     if user.Role == models.RoleAdmin && user.AdminRole != nil {
+//         for _, p := range user.AdminRole.Permissions {
+//             permissions = append(permissions, p.Slug)
+//         }
+//     }
+// 	accessToken, err := h.JWTService.GenerateAccessToken(user.ID, user.Role,permissions)
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access token"})
+// 		return
+// 	}
+// 	utils.SetAccessToken(c, accessToken)
+// 	rawRefresh, hashedRefresh, expiresAt, err := h.JWTService.GenerateRefreshToken()
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate refresh token"})
+// 		return
+// 	}
+// 	_ = h.RefreshRepo.DeleteByUserID(user.ID)
+// 	err = h.RefreshRepo.Save(&models.RefreshToken{
+// 		UserID:      user.ID,
+// 		TokenHashed: hashedRefresh,
+// 		ExpiresAt:   expiresAt,
+// 	})
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not save refresh token"})
+// 		return
+// 	}
+// 	utils.SetRefreshToken(c, rawRefresh)
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"user": gin.H{
+// 			"id":   user.ID,
+// 			"name": user.Name,
+// 			"role": user.Role,
+// 			"permissions": permissions,
+// 		},
+// 	})
+// }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	access, _ := c.Cookie("access_token")

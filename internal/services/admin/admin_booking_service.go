@@ -253,6 +253,16 @@ func (s *AdminBookingService) UpdateAttendance(
 			return errors.New("amounts cannot be negative")
 		}
 
+		// ---------------- RESTORE BASE AMOUNT FROM USER ----------------
+		var user models.User
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND deleted_at IS NULL", booking.UserID).
+			First(&user).Error; err != nil {
+			return errors.New("user not found")
+		}
+
+		booking.BaseAmount = user.CurrentWage
 		booking.TAAmount = taAmount
 		booking.BonusAmount = bonusAmount
 		booking.FineAmount = fineAmount

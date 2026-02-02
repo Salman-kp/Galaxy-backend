@@ -67,7 +67,8 @@ func AdminRoutes(r *gin.RouterGroup) {
 	events := adminGroup.Group("/events")
 	{
         events.GET("/", middleware.HasPermission("event:view"), eventHandler.ListEvents)
-        events.POST("/", middleware.HasPermission("event:create"), eventHandler.CreateEvent)
+    	events.GET("/:id", middleware.HasPermission("event:view"), eventHandler.GetEvent)
+		events.POST("/", middleware.HasPermission("event:create"), eventHandler.CreateEvent)
         events.PUT("/:id", middleware.HasPermission("event:edit"), eventHandler.UpdateEvent)
         events.DELETE("/:id", middleware.HasPermission("event:delete"), eventHandler.DeleteEvent)
         
@@ -91,7 +92,6 @@ func AdminRoutes(r *gin.RouterGroup) {
 	adminGroup.GET("/dashboard/summary", middleware.HasPermission("dashboard:view"), dashboardHandler.GetSummary)
 	adminGroup.GET("/dashboard/charts/monthly", middleware.HasPermission("dashboard:view"), dashboardHandler.GetMonthlyChart)
 	adminGroup.GET("/dashboard/charts/daily", middleware.HasPermission("dashboard:view"), dashboardHandler.GetDailyChart)
-	adminGroup.GET("/dashboard/today", middleware.HasPermission("dashboard:view"), dashboardHandler.GetTodayEvents)
 	adminGroup.PUT("/profile", middleware.HasPermission("profile:edit"), profileHandler.UpdateProfile)
 
     // --- ROLE WAGES ---
@@ -102,9 +102,6 @@ func AdminRoutes(r *gin.RouterGroup) {
     rbac := adminGroup.Group("/rbac")
     rbac.Use(middleware.HasPermission("rbac:view"))
     {
-    rbac.GET("/admins/:role", userHandler.ListUsersByRole) 
-
-	rbac.GET("/dropdown/roles", roleHandler.ListRoles)
     rbac.POST("/users/invite", userHandler.CreateUser)
 
 	rbac.GET("/permissions", roleHandler.ListPermissions)
@@ -114,7 +111,7 @@ func AdminRoutes(r *gin.RouterGroup) {
     rbac.PUT("/roles/:id", roleHandler.UpdateRole)
     rbac.DELETE("/roles/:id", roleHandler.DeleteRole)
 
-    rbac.PUT("/admins/clearance/:id", userHandler.UpdateUser)
+    rbac.PUT("/update-role/:id", userHandler.UpdateUserRole) 
     rbac.DELETE("/admins/:id", userHandler.DeleteUser)
   }
 }

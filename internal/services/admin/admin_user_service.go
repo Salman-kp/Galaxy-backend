@@ -243,3 +243,54 @@ func (s *AdminUserService) ListUsersByRole(role string) ([]models.User, error) {
 func (s *AdminUserService) SearchUsersByPhone(phone string) ([]models.User, error) {
 	return s.repo.SearchByPhone(phone)
 }
+
+func (s *AdminUserService) UpdateUserRole(userID uint, role string, adminRoleID *uint) error {
+    user, err := s.repo.FindByID(userID)
+    if err != nil {
+        return err
+    }
+
+    changed := false
+
+    // 1. Role Change Logic
+    if role != "" && role != user.Role {
+        user.Role = role
+        changed = true
+
+        // Wage Logic
+        if role == models.RoleAdmin {
+            user.CurrentWage = 0
+        } else {
+            if rw, err := s.roleWageRepo.FindByRole(role); err == nil {
+                user.CurrentWage = rw.Wage
+            } else {
+                user.CurrentWage = 0
+            }
+        }
+    }
+
+    // 2. AdminRoleID Logic
+    if user.Role == models.RoleAdmin {
+        // If they are Admin, update the sub-role
+        if adminRoleID != nil {
+            if user.AdminRoleID == nil || *adminRoleID != *user.AdminRoleID {
+                user.AdminRoleID = adminRoleID
+                changed = true
+            }
+        }
+    } else {
+        // FORCE NIL: If they are NOT Admin, the ID must be nil
+        // This satisfies your Postgres Check Constraint
+        if user.AdminRoleID != nil {
+            user.AdminRoleID = nil 
+            changed = true
+        }
+    }
+
+    if !changed {
+        return errors.New("no changes detected in clearance")
+    }
+
+    // 3. Save using our specific UpdateRole method
+    return s.repo.UpdateRole(user)
+}

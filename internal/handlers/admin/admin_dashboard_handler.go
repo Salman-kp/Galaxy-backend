@@ -78,13 +78,3 @@ func (h *AdminDashboardHandler) GetDailyChart(c *gin.Context) {
 	c.JSON(http.StatusOK, data)
 }
 
-// TODAY'S WORK LIST
-func (h *AdminDashboardHandler) GetTodayEvents(c *gin.Context) {
-	events, err := h.service.GetTodayEvents()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch today events"})
-		return
-	}
-
-	c.JSON(http.StatusOK, events)
-}

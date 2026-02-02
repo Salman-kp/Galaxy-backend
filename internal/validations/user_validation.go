@@ -103,3 +103,19 @@ func (r *UpdateAdminSelfProfileRequest) Validate() error {
 	}
 	return nil
 }
+
+// UpdateUserClearanceRequest is for updating ONLY roles
+type UpdateUserClearanceRequest struct {
+    Role        string `json:"role" binding:"required"`
+    AdminRoleID *uint  `json:"admin_role_id"`
+}
+
+func (r *UpdateUserClearanceRequest) Validate() error {
+    if r.Role == "" || !models.ValidateRole(r.Role) {
+        return errors.New("a valid primary role is required")
+    }
+        if r.Role == models.RoleAdmin && (r.AdminRoleID == nil || *r.AdminRoleID == 0) {
+        return errors.New("admin role ID is required for administrative accounts")
+    }
+    return nil
+}
