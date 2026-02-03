@@ -96,32 +96,43 @@ func (h *CaptainBookingHandler) ListEventBookings(c *gin.Context) {
 
 // ======================= UPDATE ATTENDANCE =======================
 func (h *CaptainBookingHandler) UpdateAttendance(c *gin.Context) {
-	captainID := c.GetUint("user_id")
+    captainID := c.GetUint("user_id")
 
-	var req validations.UpdateAttendanceRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-		return
-	}
+    var req validations.UpdateAttendanceRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+        return
+    }
 
-	if err := req.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+    if err := req.Validate(); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-	if err := h.service.UpdateAttendance(
-		captainID,
-		req.BookingID,
-		req.Status,
-		req.TAAmount,
-		req.BonusAmount,
-		req.FineAmount,
-	); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+    booking, err := h.service.UpdateAttendance(
+        captainID,
+        req.BookingID,
+        req.Status,
+        req.TAAmount,
+        req.BonusAmount,
+        req.FineAmount,
+    )
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-	c.JSON(http.StatusOK, gin.H{"message": "attendance updated successfully"})
+    c.JSON(http.StatusOK, gin.H{
+        "message":      "attendance updated successfully",
+        "booking_id":   booking.ID,
+        "status":       booking.Status,
+        "base_amount":  booking.BaseAmount,
+        "extra_amount": booking.ExtraAmount,
+        "ta_amount":    booking.TAAmount,
+        "bonus_amount": booking.BonusAmount,
+        "fine_amount":  booking.FineAmount,
+        "total_amount": booking.TotalAmount,
+    })
 }
 // ======================= FILTER BY STATUS =======================
 func (h *CaptainBookingHandler) ListEventBookingsByStatus(c *gin.Context) {

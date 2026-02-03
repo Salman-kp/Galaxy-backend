@@ -88,25 +88,37 @@ func (r *eventRepository) listAvailableByRole(
 
 	var events []models.Event
 
-	q := config.DB.Model(&models.Event{}).
-		Where("events.deleted_at IS NULL").
-		Where("events.status = ?", models.EventStatusUpcoming).
-		Where(roleCondition).
-		Where(`
-			events.id NOT IN (
-				SELECT event_id
-				FROM bookings
-				WHERE user_id = ?
-				AND deleted_at IS NULL
-			)
-		`, userID)
+    q := config.DB.Model(&models.Event{}).
+        Where("events.deleted_at IS NULL").
+        Where("events.status = ?", models.EventStatusUpcoming).
+        Where(roleCondition)
 
-	if !date.IsZero() {
-		q = q.Where("events.date >= ?", date)
-	}
+    q = q.Where(`
+        NOT EXISTS (
+            SELECT 1 FROM bookings 
+            WHERE bookings.event_id = events.id 
+            AND bookings.user_id = ? 
+            AND bookings.deleted_at IS NULL
+        )
+    `, userID)
 
-	err := q.Order("events.date ASC").Find(&events).Error
-	return events, err
+	q = q.Where(`
+        NOT EXISTS (
+            SELECT 1 FROM bookings b
+            JOIN events e ON b.event_id = e.id
+            WHERE b.user_id = ? 
+            AND b.deleted_at IS NULL 
+            AND e.deleted_at IS NULL
+            AND DATE(e.date) = DATE(events.date)
+        )
+    `, userID)
+
+    if !date.IsZero() {
+        q = q.Where("DATE(events.date) >= DATE(?)", date)
+    }
+
+    err := q.Order("events.date ASC").Find(&events).Error
+    return events, err
 }
 
 func (r *eventRepository) Update(event *models.Event) error {

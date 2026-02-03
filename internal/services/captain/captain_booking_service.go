@@ -130,18 +130,24 @@ func (s *CaptainBookingService) ListUpcomingBookings(userID uint) ([]CaptainBook
 	var bookings []models.Booking
 	today := time.Now().Truncate(24 * time.Hour)
 
-	err := config.DB.
-		Preload("Event").
-		Joins("JOIN events ON events.id = bookings.event_id").
-		Where(`
-			bookings.user_id = ?
-			AND events.date > ?
-			AND bookings.deleted_at IS NULL
-		`, userID, today).
-		Order("events.date ASC").
-		Find(&bookings).Error
+    err := config.DB.
+        Preload("Event").
+        Joins("JOIN events ON events.id = bookings.event_id").
+        Where(`
+            bookings.user_id = ?
+            AND DATE(events.date) > DATE(?)
+            AND events.status = ?
+            AND bookings.deleted_at IS NULL
+            AND events.deleted_at IS NULL
+        `, userID, today, "upcoming").
+        Order("events.date ASC").
+        Find(&bookings).Error
 
-	return mapBookingResponses(bookings), err
+    if err != nil {
+        return nil, err
+    }
+
+    return mapBookingResponses(bookings), nil
 }
 
 // ======================= COMPLETED BOOKINGS =======================
@@ -202,9 +208,11 @@ func (s *CaptainBookingService) UpdateAttendance(
 	bookingID uint,
 	status string,
 	ta, bonus, fine int64,
-) error {
+) (*models.Booking, error) {
 
-	return config.DB.Transaction(func(tx *gorm.DB) error {
+	var updatedBooking *models.Booking
+
+	err := config.DB.Transaction(func(tx *gorm.DB) error {
 
 		var booking models.Booking
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -250,16 +258,30 @@ func (s *CaptainBookingService) UpdateAttendance(
 			booking.BonusAmount = 0
 			booking.FineAmount = 0
 			booking.TotalAmount = 0
-			return tx.Save(&booking).Error
+
+			if err := tx.Save(&booking).Error; err != nil {
+				return err
+			}
+			updatedBooking = &booking
+			return nil
 		}
 
 		if ta < 0 || bonus < 0 || fine < 0 {
 			return errors.New("amounts cannot be negative")
 		}
 
+		var user models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND deleted_at IS NULL", booking.UserID).
+			First(&user).Error; err != nil {
+			return errors.New("worker user not found")
+		}
+
+		booking.BaseAmount = user.CurrentWage
 		booking.TAAmount = ta
 		booking.BonusAmount = bonus
 		booking.FineAmount = fine
+
 		if event.LongWork {
 			booking.ExtraAmount = event.ExtraWageAmount
 		} else {
@@ -277,8 +299,15 @@ func (s *CaptainBookingService) UpdateAttendance(
 			booking.TotalAmount = 0
 		}
 
-		return tx.Save(&booking).Error
+		if err := tx.Save(&booking).Error; err != nil {
+			return err
+		}
+
+		updatedBooking = &booking
+		return nil
 	})
+
+	return updatedBooking, err
 }
 // ======================= FILTER BY STATUS =======================
 func (s *CaptainBookingService) ListEventBookingsByStatus(
