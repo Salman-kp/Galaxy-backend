@@ -17,6 +17,7 @@ type UserRepository interface {
 	UpdateRole(user *models.User) error
 	UpdateFields(id uint, updates map[string]interface{}) error
 	UpdateWageByRole(role string, wage int64) error
-
+    
+	RemovePhoto(id uint) error
 	SoftDelete(id uint) error
 }

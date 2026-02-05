@@ -127,19 +127,34 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+    existingUser, err := h.service.GetUser(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
 	jsonData := c.PostForm("json")
 	if jsonData == "" {
+		fmt.Println("UpdateUser Error: 'json' field is empty in form-data")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "json is required"})
 		return
 	}
 
 	var req validations.UpdateUserRequest
 	if err := json.Unmarshal([]byte(jsonData), &req); err != nil {
+		fmt.Printf("UpdateUser Error: JSON Unmarshal failed: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
 		return
 	}
 
+	if req.Role == models.RoleAdmin && req.AdminRoleID == nil {
+		if existingUser.AdminRoleID != nil {
+			req.AdminRoleID = existingUser.AdminRoleID
+		}
+	}
+
 	if err := req.Validate(); err != nil {
+		fmt.Printf("UpdateUser Error: Validation failed: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -192,16 +207,47 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
 
 	err = h.service.UpdateUser(user)
 	if err != nil {
+		if photoName != "" {
+			os.Remove(filepath.Join("uploads/users", photoName))
+		}
+		
 		if err.Error() == "no changes detected" {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "no changes detected"})
 			return
 		}
 
+		fmt.Printf("UpdateUser Error: Service Update failed: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if photoName != "" && existingUser.Photo != "" {
+		if photoName != existingUser.Photo {
+			oldPath := filepath.Join("uploads/users", existingUser.Photo)
+			_ = os.Remove(oldPath)
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "user updated"})
+}
+
+func (h *AdminUserHandler) RemoveUserPhoto(c *gin.Context) {
+    id := parseID(c.Param("id"))
+    if id == 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+        return
+    }
+
+    photoName, err := h.service.RemoveUserPhoto(id)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    if photoName != "" {
+        oldPath := filepath.Join("uploads/users", photoName)
+        _ = os.Remove(oldPath)
+    }
+    c.JSON(http.StatusOK, gin.H{"message": "photo removed successfully"})
 }
 
 func (h *AdminUserHandler) BlockUser(c *gin.Context) {

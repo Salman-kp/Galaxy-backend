@@ -94,7 +94,9 @@ func (r *userRepository) Update(user *models.User) error {
 func (r *userRepository) UpdateRole(user *models.User) error {
  return config.DB.Model(user).Select("Role", "AdminRoleID", "CurrentWage", "UpdatedAt").Updates(user).Error
 }
-
+func (r *userRepository) RemovePhoto(id uint) error {
+    return config.DB.Model(&models.User{}).Where("id = ?", id).Update("photo", "").Error
+}
 func (r *userRepository) UpdateFields(id uint, updates map[string]interface{}) error {
 	return config.DB.
 		Session(&gorm.Session{SkipHooks: true}).

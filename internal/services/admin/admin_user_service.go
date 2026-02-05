@@ -294,3 +294,22 @@ func (s *AdminUserService) UpdateUserRole(userID uint, role string, adminRoleID 
     // 3. Save using our specific UpdateRole method
     return s.repo.UpdateRole(user)
 }
+
+func (s *AdminUserService) RemoveUserPhoto(id uint) (string, error) {
+    user, err := s.repo.FindByID(id)
+    if err != nil {
+        return "", err
+    }
+    
+    if user.Photo == "" {
+        return "", errors.New("user has no photo to remove")
+    }
+
+    oldPhoto := user.Photo
+    err = s.repo.RemovePhoto(id)
+    if err != nil {
+        return "", err
+    }
+
+    return oldPhoto, nil
+}

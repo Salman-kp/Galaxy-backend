@@ -64,6 +64,7 @@ func AdminRoutes(r *gin.RouterGroup) {
 		users.PUT("/:id",middleware.HasPermission("user:edit"), userHandler.UpdateUser)
 		users.PUT("/block/:id", middleware.HasPermission("user:status"),userHandler.BlockUser)
 		users.PUT("/unblock/:id",middleware.HasPermission("user:status"), userHandler.UnblockUser)
+		users.DELETE("/:id/photo",middleware.HasPermission("user:edit"), userHandler.RemoveUserPhoto)
 		users.DELETE("/:id",middleware.HasPermission("user:delete"), userHandler.DeleteUser)
 		users.PUT("/reset-password/:id",middleware.HasPermission("user:password"), userHandler.ResetPassword)
 	}
