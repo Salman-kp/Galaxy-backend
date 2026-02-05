@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"event-management-backend/internal/config"
 	adminHandlers "event-management-backend/internal/handlers/admin"
 	"event-management-backend/internal/middleware"
 	"event-management-backend/internal/repository"
@@ -40,6 +41,7 @@ func AdminRoutes(r *gin.RouterGroup) {
 	profileHandler := adminHandlers.NewAdminProfileHandler(userService)
 	roleWageHandler := adminHandlers.NewRoleWageHandler(roleWageService)
 	roleHandler := adminHandlers.NewAdminRoleHandler(roleService)
+	settingHandler := adminHandlers.NewSettingHandler(config.DB)
 
 	// ---------------- Routes ----------------
 	adminGroup := r.Group("/admin")
@@ -47,6 +49,9 @@ func AdminRoutes(r *gin.RouterGroup) {
 		middleware.JWTAuthMiddleware(jwtService, refreshRepo),
 		middleware.AdminMiddleware(),
 	)
+
+	adminGroup.GET("/settings", middleware.HasPermission("system:manage"), settingHandler.GetSettings)
+	adminGroup.PUT("/settings", middleware.HasPermission("system:manage"), settingHandler.UpdateSetting)
 
     // --- USER MANAGEMENT ---
 	users := adminGroup.Group("/users")

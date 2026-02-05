@@ -34,7 +34,7 @@ func CaptainRoutes(r *gin.RouterGroup) {
 	)
 
 	// EVENT ROUTES
-	captainGroup.GET("/events", eventHandler.ListEvents)
+	captainGroup.GET("/events",middleware.SystemGuard() ,eventHandler.ListEvents)
 	captainGroup.GET("/events/:id", eventHandler.GetEvent)
 	captainGroup.PUT("/events/start/:id", eventHandler.StartEvent)
 	captainGroup.PUT("/events/complete/:id", eventHandler.CompleteEvent)

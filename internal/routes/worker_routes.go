@@ -38,7 +38,7 @@ func WorkerRoutes(r *gin.RouterGroup) {
 	)
 
 	// HOME
-	workerGroup.GET("/events", eventHandler.ListEvents)
+	workerGroup.GET("/events",middleware.SystemGuard(),eventHandler.ListEvents)
 	workerGroup.GET("/events/:id", eventHandler.GetEvent)
 
 	// BOOK EVENT

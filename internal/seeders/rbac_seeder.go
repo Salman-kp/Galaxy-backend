@@ -12,6 +12,8 @@ import (
 func SeedRBAC(db *gorm.DB) {
 	// 1. Define ALL granular permissions exactly as they appear in AdminRoutes
 	permissions := []models.Permission{
+		// --- SYSTEM CONFIGURATION ---
+        {Slug: "system:manage", Description: "Ability to manage global system settings (Maintenance, Access Control)"},
 		// --- USER MANAGEMENT ---
 		{Slug: "user:create", Description: "Ability to create or invite new users"},
 		{Slug: "user:view", Description: "Ability to view user lists, search, and details"},

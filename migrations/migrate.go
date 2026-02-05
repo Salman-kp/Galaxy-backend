@@ -14,5 +14,6 @@ func Migrate() error {
 		&models.Booking{},
 		&models.AdminRole{},
 		&models.Permission{},
+		&models.SystemSetting{},
 	)
 }

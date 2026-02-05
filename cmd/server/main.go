@@ -28,6 +28,9 @@ func main() {
 
 	// Router
 	router := gin.Default()
+
+	config.SetupWebConfig(router)
+	
 	router.Static("/uploads", "./uploads/users")
 	api := router.Group("/api")
 

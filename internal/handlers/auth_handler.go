@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"event-management-backend/internal/config"
 	"event-management-backend/internal/domain/interfaces"
 	"event-management-backend/internal/domain/models"
 	"event-management-backend/internal/services/auth"
@@ -50,6 +51,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
         c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
         return
     }
+    
+    var maintSetting models.SystemSetting
+		if err := config.DB.
+			Where("key = ?", "maintenance_mode").
+			First(&maintSetting).Error; err == nil {
+
+			// Only admin can bypass maintenance
+			if maintSetting.Value == "true" && user.Role != models.RoleAdmin {
+				c.JSON(http.StatusServiceUnavailable, gin.H{
+					"error": "System is currently under maintenance. Please try again later.",
+				})
+				return
+			}
+		}
+
 
     // 4. Handle RBAC: Collect permissions only if the user is an admin
     permissions := []string{}
