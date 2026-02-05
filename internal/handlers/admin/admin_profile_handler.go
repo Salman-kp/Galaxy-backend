@@ -27,6 +27,12 @@ func NewAdminProfileHandler(service *admin.AdminUserService) *AdminProfileHandle
 func (h *AdminProfileHandler) UpdateProfile(c *gin.Context) {
 	adminID := c.GetUint("user_id")
 
+	existingUser, err := h.service.GetUser(adminID) 
+    if err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+        return
+    }
+
 	jsonData := c.PostForm("json")
 	if jsonData == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "json is required"})
@@ -83,6 +89,9 @@ func (h *AdminProfileHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	if err := h.service.UpdateUser(user); err != nil {
+		if photoName != "" {
+            os.Remove(filepath.Join("uploads/users", photoName))
+        }
 		if err.Error() == "no changes detected" {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "no changes detected"})
 			return
@@ -90,6 +99,13 @@ func (h *AdminProfileHandler) UpdateProfile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	
+	if photoName != "" && existingUser.Photo != "" {
+        if photoName != existingUser.Photo {
+            oldPath := filepath.Join("uploads/users", existingUser.Photo)
+            _ = os.Remove(oldPath)
+        }
+    }
 
 	c.JSON(http.StatusOK, gin.H{"message": "profile updated successfully"})
 }
