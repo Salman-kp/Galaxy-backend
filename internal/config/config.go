@@ -13,10 +13,9 @@ import (
 var DB *gorm.DB
 
 func LoadEnv() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("❌ Error loading .env file")
-	}
+	if err := godotenv.Load(); err != nil {
+	log.Println("⚠️ .env file not found, using system env")
+ }
 	fmt.Println("✅ .env loaded successfully")
 }
 
