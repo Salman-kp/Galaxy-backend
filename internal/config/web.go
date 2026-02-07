@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -8,11 +10,16 @@ import (
 )
 
 func SetupWebConfig(r *gin.Engine) {
+
+	originsEnv := os.Getenv("CORS_ORIGINS")
+
+	var origins []string
+	if originsEnv != "" {
+		origins = strings.Split(originsEnv, ",")
+	}
+
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{
-			"http://localhost:3000",
-			"http://localhost:5173",
-		},
+		AllowOrigins: origins,
 		AllowMethods: []string{
 			"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS",
 		},
@@ -24,5 +31,6 @@ func SetupWebConfig(r *gin.Engine) {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+
 	r.SetTrustedProxies(nil)
 }
