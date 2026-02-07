@@ -20,8 +20,8 @@ func SetAccessToken(c *gin.Context, token string) {
 		MaxAge:   maxAge,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   isProduction(),
-		SameSite: http.SameSiteLaxMode,
+		Secure:   true, 
+		SameSite: http.SameSiteNoneMode,
 	})
 }
 
@@ -32,8 +32,8 @@ func ClearAccessToken(c *gin.Context) {
 		MaxAge:   -1,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   isProduction(),
-		SameSite: http.SameSiteLaxMode,
+		Secure:   true, 
+		SameSite: http.SameSiteNoneMode,
 	})
 }
 
@@ -46,8 +46,8 @@ func SetRefreshToken(c *gin.Context, token string) {
 		MaxAge:   maxAge,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   isProduction(),
-		SameSite: http.SameSiteLaxMode,
+		Secure:   true, 
+		SameSite: http.SameSiteNoneMode,
 	})
 }
 
@@ -58,7 +58,7 @@ func ClearRefreshToken(c *gin.Context) {
 		MaxAge:   -1,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   isProduction(),
-		SameSite: http.SameSiteLaxMode,
+		Secure:   true, 
+		SameSite: http.SameSiteNoneMode,
 	})
 }

@@ -13,7 +13,7 @@ func SeedRBAC(db *gorm.DB) {
 	// 1. Define ALL granular permissions exactly as they appear in AdminRoutes
 	permissions := []models.Permission{
 		// --- SYSTEM CONFIGURATION ---
-        {Slug: "system:manage", Description: "Ability to manage global system settings (Maintenance, Access Control)"},
+		{Slug: "system:manage", Description: "Ability to manage global system settings (Maintenance, Access Control)"},
 		// --- USER MANAGEMENT ---
 		{Slug: "user:create", Description: "Ability to create or invite new users"},
 		{Slug: "user:view", Description: "Ability to view user lists, search, and details"},
@@ -66,20 +66,20 @@ func SeedRBAC(db *gorm.DB) {
 	}
 
 	// 5. Create or Sync the Primary System Administrator
-	hashedPassword, _ := utils.HashPassword("admin123") 
+	hashedPassword, _ := utils.HashPassword("		")
 	dob := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	firstAdmin := models.User{
 		Name:          "System Administrator",
-		Phone:         "1234567890", 
+		Phone:         "1234567890",
 		Password:      hashedPassword,
-		Role:          models.RoleAdmin, 
-		Branch:        "Head Office",    
-		StartingPoint: "Main Branch",    
-		BloodGroup:    "O+",             
-		DOB:           &dob,             
+		Role:          models.RoleAdmin,
+		Branch:        "Head Office",
+		StartingPoint: "Main Branch",
+		BloodGroup:    "O+",
+		DOB:           &dob,
 		Status:        models.StatusActive,
-		AdminRoleID:   &superAdminRole.ID, 
+		AdminRoleID:   &superAdminRole.ID,
 		JoinedAt:      time.Now(),
 	}
 
@@ -93,7 +93,7 @@ func SeedRBAC(db *gorm.DB) {
 	} else {
 		db.Model(&existingUser).Updates(map[string]interface{}{
 			"admin_role_id": superAdminRole.ID,
-			"role":          models.RoleAdmin, 
+			"role":          models.RoleAdmin,
 			"status":        models.StatusActive,
 		})
 		fmt.Println("ℹ️ Seeding synced: User 1234567890 is now a Super Admin with full permissions.")
