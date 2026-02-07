@@ -66,7 +66,7 @@ func SeedRBAC(db *gorm.DB) {
 	}
 
 	// 5. Create or Sync the Primary System Administrator
-	hashedPassword, _ := utils.HashPassword("		")
+	hashedPassword, _ := utils.HashPassword("admin123")
 	dob := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	firstAdmin := models.User{
