@@ -15,7 +15,13 @@ func SetupWebConfig(r *gin.Engine) {
 
 	var origins []string
 	if originsEnv != "" {
-		origins = strings.Split(originsEnv, ",")
+		parts := strings.Split(originsEnv, ",")
+		for _, o := range parts {
+			o = strings.TrimSpace(o)
+			if o != "" {
+				origins = append(origins, o)
+			}
+		}
 	}
 
 	r.Use(cors.New(cors.Config{
