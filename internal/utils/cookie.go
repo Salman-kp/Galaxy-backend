@@ -11,6 +11,13 @@ func isProduction() bool {
 	return os.Getenv("APP_ENV") == "production"
 }
 
+func sameSiteMode() http.SameSite {
+	if isProduction() {
+		return http.SameSiteNoneMode
+	}
+	return http.SameSiteLaxMode
+}
+
 func SetAccessToken(c *gin.Context, token string) {
 	maxAge := 60 * 60
 
@@ -21,7 +28,7 @@ func SetAccessToken(c *gin.Context, token string) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   isProduction(),
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSiteMode(),
 	})
 }
 
@@ -33,7 +40,7 @@ func ClearAccessToken(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   isProduction(),
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSiteMode(),
 	})
 }
 
@@ -47,7 +54,7 @@ func SetRefreshToken(c *gin.Context, token string) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   isProduction(),
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSiteMode(),
 	})
 }
 
@@ -59,6 +66,6 @@ func ClearRefreshToken(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   isProduction(),
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSiteMode(),
 	})
 }
