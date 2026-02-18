@@ -8,6 +8,7 @@ import (
 	"event-management-backend/migrations"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +35,11 @@ func main() {
 
 	router.Static("/uploads", "./uploads/users")
 	api := router.Group("/api")
-
+	api.GET("/status", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "status ok",
+		})
+	})
 	// Auth routes
 	routes.AuthRoutes(
 		api,
